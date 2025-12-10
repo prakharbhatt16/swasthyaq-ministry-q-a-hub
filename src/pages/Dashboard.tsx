@@ -6,12 +6,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { LayoutGrid, ListChecks, FileText, PlusCircle, Paperclip, Activity } from 'lucide-react';
+import { FileText, PlusCircle, Paperclip, Activity, CheckCircle, Clock, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Metrics, RecentActivity } from '@shared/types';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 const COLORS = ['#667EEA', '#F38020', '#374151', '#4CAF50', '#FFC107'];
+const StatCard = ({ title, value, icon: Icon }: { title: string; value: number | string; icon: React.ElementType }) => (
+  <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+      </CardContent>
+    </Card>
+  </motion.div>
+);
 export default function Dashboard() {
   const navigate = useNavigate();
   const { data: metrics, isLoading: isLoadingMetrics, error: metricsError } = useQuery<Metrics>({
@@ -22,20 +35,8 @@ export default function Dashboard() {
     queryKey: ['recent-activity'],
     queryFn: () => api('/api/recent-activity'),
   });
-  const StatCard = ({ title, value, icon: Icon }: { title: string; value: number | string; icon: React.ElementType }) => (
-    <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">{title}</CardTitle>
-          <Icon className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{value}</div>
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
   const error = metricsError || activityError;
+  const statusCounts = metrics?.byStatus.reduce((acc, s) => ({ ...acc, [s.status]: s.count }), { Draft: 0, Submitted: 0, Answered: 0, Closed: 0 }) || { Draft: 0, Submitted: 0, Answered: 0, Closed: 0 };
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen text-destructive">
@@ -50,13 +51,11 @@ export default function Dashboard() {
         <div className="py-8 md:py-10 lg:py-12">
           <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
+              <Button variant="ghost" onClick={() => navigate('/')} className="mb-2 -ml-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Home</Button>
               <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
               <p className="text-muted-foreground mt-1">Overview of Q&A activity.</p>
             </div>
-            <div className="flex gap-2">
-              <Button asChild variant="outline"><Link to="/questions">View All Questions</Link></Button>
-              <Button asChild className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to="/questions/new"><PlusCircle className="h-4 w-4 mr-2" /> Create Question</Link></Button>
-            </div>
+            <Button asChild className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to="/questions/new"><PlusCircle className="h-4 w-4 mr-2" /> Create Question</Link></Button>
           </header>
           <main className="space-y-8">
             <motion.div
@@ -70,8 +69,8 @@ export default function Dashboard() {
               ) : (
                 <>
                   <StatCard title="Total Questions" value={metrics?.totalQuestions ?? 0} icon={FileText} />
-                  <StatCard title="Answered" value={metrics?.byStatus.find(s => s.status === 'Answered')?.count ?? 0} icon={ListChecks} />
-                  <StatCard title="Submitted" value={metrics?.byStatus.find(s => s.status === 'Submitted')?.count ?? 0} icon={LayoutGrid} />
+                  <StatCard title="Answered" value={statusCounts.Answered} icon={CheckCircle} />
+                  <StatCard title="Pending" value={statusCounts.Submitted + statusCounts.Draft} icon={Clock} />
                   <StatCard title="Total Attachments" value={metrics?.totalAttachments ?? 0} icon={Paperclip} />
                 </>
               )}
@@ -123,7 +122,9 @@ export default function Dashboard() {
                   <ul className="space-y-4">
                     {recentActivity?.map((item, i) => (
                       <motion.li key={item.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                        <Link to={`/questions/${item.id}`} className="font-medium hover:underline">{item.title}</Link>
+                        <Link to={`/questions/${item.id}`} className="font-medium hover:underline">
+                          <span className="font-bold text-primary">{item.ticketNumber}</span> - {item.title}
+                        </Link>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Badge variant="outline">{item.status}</Badge>
                           <span>{formatDistanceToNow(new Date(item.updatedAt), { addSuffix: true })}</span>

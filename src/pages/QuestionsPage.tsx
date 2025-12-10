@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDebounce } from 'react-use';
 import { toast } from 'sonner';
@@ -11,13 +11,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { PlusCircle, Search, LayoutGrid, List, FileQuestion, Download, ChevronDown, Loader2 } from 'lucide-react';
+import { PlusCircle, Search, LayoutGrid, List, FileQuestion, Download, ChevronDown, Loader2, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus } from '@shared/types';
 import { QuestionCard } from '@/components/QuestionCard';
 import { DIVISIONS } from '@shared/mock-data';
 const PAGE_SIZE = 9;
-export default function QuestionsPage() {
+interface QuestionsPageProps {
+  isHomePage?: boolean;
+}
+export default function QuestionsPage({ isHomePage = false }: QuestionsPageProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -48,7 +52,6 @@ export default function QuestionsPage() {
       setCursors(prev => [...prev, data.next]);
     }
   }, [data?.next, currentPage, cursors]);
-  // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(0);
     setCursors([]);
@@ -139,15 +142,18 @@ export default function QuestionsPage() {
       </div>
     );
   };
+  const Wrapper = isHomePage ? 'div' : 'div';
+  const wrapperProps = isHomePage ? {} : { className: "min-h-screen bg-secondary/40" };
   return (
-    <div className="min-h-screen bg-secondary/40">
-      <ThemeToggle className="fixed top-4 right-4 z-50" />
+    <Wrapper {...wrapperProps}>
+      {!isHomePage && <ThemeToggle className="fixed top-4 right-4 z-50" />}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8 md:py-10 lg:py-12">
           <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Questions</h1>
-              <p className="text-muted-foreground mt-1">Browse, search, and manage all questions.</p>
+              {!isHomePage && <Button variant="ghost" onClick={() => navigate('/')} className="mb-2 -ml-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Home</Button>}
+              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">{isHomePage ? 'Recent Questions' : 'Questions'}</h1>
+              <p className="text-muted-foreground mt-1">{isHomePage ? 'Latest inquiries and their status.' : 'Browse, search, and manage all questions.'}</p>
             </div>
             <Button asChild className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to="/questions/new"><PlusCircle className="h-4 w-4 mr-2" /> Create Question</Link></Button>
           </header>
@@ -155,7 +161,7 @@ export default function QuestionsPage() {
             <div className="flex flex-col md:flex-row gap-4 items-center">
               <div className="relative w-full md:flex-grow">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search questions by title or body..." className="pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <Input placeholder="Search by title, ticket #, or member..." className="pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
               <div className="flex gap-2 w-full md:w-auto">
                 <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Filter by status" /></SelectTrigger><SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Submitted">Submitted</SelectItem><SelectItem value="Answered">Answered</SelectItem><SelectItem value="Closed">Closed</SelectItem></SelectContent></Select>
@@ -201,6 +207,6 @@ export default function QuestionsPage() {
           </footer>
         </div>
       </div>
-    </div>
+    </Wrapper>
   );
 }

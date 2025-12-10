@@ -1,16 +1,18 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Folder, Link as LinkIcon, Paperclip } from 'lucide-react';
+import { Folder, Link as LinkIcon, Paperclip, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Attachment } from '@shared/types';
 import { DIVISIONS } from '@shared/mock-data';
+import { Button } from '@/components/ui/button';
 export default function AttachmentsPage() {
+  const navigate = useNavigate();
   const [divisionFilter, setDivisionFilter] = useState('All');
   const { data: attachments, isLoading, error } = useQuery<Attachment[]>({
     queryKey: ['attachments'],
@@ -31,6 +33,7 @@ export default function AttachmentsPage() {
         <div className="py-8 md:py-10 lg:py-12">
           <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
+              <Button variant="ghost" onClick={() => navigate('/')} className="mb-2 -ml-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Home</Button>
               <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Attachments</h1>
               <p className="text-muted-foreground mt-1">Browse all attachments grouped by division.</p>
             </div>

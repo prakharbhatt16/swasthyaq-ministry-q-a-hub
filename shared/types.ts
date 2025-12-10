@@ -39,6 +39,8 @@ export interface Question {
   updatedAt: number;
   answer?: string;
   comments?: Comment[];
+  memberName: string;
+  ticketNumber: string;
 }
 export interface Attachment {
   id: string;
@@ -59,6 +61,7 @@ export interface RecentActivity {
   title: string;
   status: QuestionStatus;
   updatedAt: number;
+  ticketNumber: string;
 }
 export type ExportCSVResponse = string;
 export interface AuditLog {

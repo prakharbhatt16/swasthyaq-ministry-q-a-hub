@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Paperclip, Calendar, Edit, ArrowRight } from 'lucide-react';
+import { Paperclip, Calendar, Edit } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { Question, QuestionStatus } from '@shared/types';
 import { cn } from '@/lib/utils';
@@ -35,7 +35,11 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
           </div>
           <div className="flex-grow p-4">
             <div className="flex items-center gap-4">
-              <Link to={`/questions/${question.id}`} className="font-semibold hover:underline flex-grow line-clamp-1" aria-label={`View ${question.title} details`}>{question.title}</Link>
+              <div className="flex-grow">
+                <Link to={`/questions/${question.id}`} className="font-bold text-blue-600 hover:underline">{question.ticketNumber}</Link>
+                <Link to={`/questions/${question.id}`} className="font-semibold hover:underline line-clamp-1 ml-2" aria-label={`View ${question.title} details`}>{question.title}</Link>
+                <p className="text-xs text-muted-foreground">by {question.memberName}</p>
+              </div>
               <Badge variant="secondary" className="hidden sm:inline-flex">{question.division}</Badge>
               <TooltipProvider>
                 <Tooltip>
@@ -49,7 +53,6 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
           </div>
           <div className="p-4 hidden md:flex items-center gap-2">
             <Button asChild variant="ghost" size="sm"><Link to={`/questions/${question.id}/edit`} aria-label={`Edit ${question.title}`}><Edit className="h-4 w-4" /></Link></Button>
-            <Button asChild size="sm" className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to={`/questions/${question.id}`} aria-label={`Open ${question.title}`}><ArrowRight className="h-4 w-4" /></Link></Button>
           </div>
         </Card>
       </motion.div>
@@ -68,7 +71,7 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
       </div>
       <Card className={cn("h-full flex flex-col overflow-hidden transition-shadow duration-300", isSelected && "ring-2 ring-primary")}>
         <CardHeader>
-          <div className="flex justify-between items-start gap-2">
+          <div className="flex justify-between items-start gap-2 mb-2">
             <Badge variant="secondary">{question.division}</Badge>
             <TooltipProvider>
               <Tooltip>
@@ -79,9 +82,11 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
               </Tooltip>
             </TooltipProvider>
           </div>
-          <CardTitle className="pt-2 text-lg leading-tight">
+          <Link to={`/questions/${question.id}`} className="font-bold text-blue-600 hover:underline block mb-1">{question.ticketNumber}</Link>
+          <CardTitle className="text-lg leading-tight">
             <Link to={`/questions/${question.id}`} className="hover:text-primary/80 transition-colors" aria-label={`View ${question.title} details`}>{question.title}</Link>
           </CardTitle>
+          <p className="text-sm text-muted-foreground">by {question.memberName}</p>
         </CardHeader>
         <CardContent className="flex-grow">
           <p className="text-sm text-muted-foreground line-clamp-3">{question.body}</p>
@@ -106,7 +111,6 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button asChild variant="ghost" size="sm" className="flex-1 sm:flex-none"><Link to={`/questions/${question.id}/edit`} aria-label={`Edit ${question.title}`}><Edit className="h-4 w-4 mr-2" /> Edit</Link></Button>
-            <Button asChild size="sm" className="flex-1 sm:flex-none bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to={`/questions/${question.id}`} aria-label={`Open ${question.title}`}>Open <ArrowRight className="h-4 w-4 ml-2" /></Link></Button>
           </div>
         </CardFooter>
       </Card>
