@@ -24,26 +24,35 @@ export default function QuestionsPage() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [divisionFilter, setDivisionFilter] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [cursors, setCursors] = useState<Array<string | null>>([null]);
+  const [cursors, setCursors] = useState<Array<string | null>>([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   useDebounce(() => setDebouncedSearchTerm(searchTerm), 500, [searchTerm]);
+  const queryKey = useMemo(() => ['questions', statusFilter, divisionFilter, debouncedSearchTerm, currentPage], [statusFilter, divisionFilter, debouncedSearchTerm, currentPage]);
   const { data, isLoading, error } = useQuery<{ items: Question[]; next: string | null }>({
-    queryKey: ['questions', statusFilter, divisionFilter, debouncedSearchTerm, currentPage],
+    queryKey,
     queryFn: () => {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
       if (statusFilter !== 'All') params.append('status', statusFilter);
       if (divisionFilter !== 'All') params.append('division', divisionFilter);
       if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
-      if (cursors[currentPage]) params.append('cursor', cursors[currentPage]!);
+      const cursor = currentPage > 0 ? cursors[currentPage - 1] : null;
+      if (cursor) {
+        params.append('cursor', cursor);
+      }
       return api(`/api/questions?${params.toString()}`);
     },
   });
   useEffect(() => {
-    if (data?.next && cursors.length === currentPage + 1) {
+    if (data?.next && cursors.length === currentPage) {
       setCursors(prev => [...prev, data.next]);
     }
-  }, [data, currentPage, cursors.length]);
+  }, [data?.next, currentPage, cursors]);
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(0);
+    setCursors([]);
+  }, [statusFilter, divisionFilter, debouncedSearchTerm]);
   const allOnPageSelected = useMemo(() => {
     const items = data?.items ?? [];
     if (items.length === 0) return false;
