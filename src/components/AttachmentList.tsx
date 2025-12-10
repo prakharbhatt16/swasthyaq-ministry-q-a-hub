@@ -1,125 +1,62 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Paperclip, Folder, Trash2, Loader2, Upload, FileIcon, Download, ImageIcon, FileTextIcon, Info } from 'lucide-react';
+import { Paperclip, PlusCircle, Trash2, Folder, Link as LinkIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { api } from '@/lib/api-client';
 import type { Attachment } from '@shared/types';
 import { formatDistanceToNow } from 'date-fns';
-import { motion } from 'framer-motion';
 interface AttachmentListProps {
   questionId: string;
   division: string;
-  onAttachmentAdded?: (label: string, path: string) => void;
 }
-export function AttachmentList({ questionId, division, onAttachmentAdded }: AttachmentListProps) {
+export function AttachmentList({ questionId, division }: AttachmentListProps) {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [newLabel, setNewLabel] = useState('');
+  const [newPath, setNewPath] = useState('');
   const { data: attachments, isLoading } = useQuery<Attachment[]>({
     queryKey: ['attachments', questionId],
     queryFn: () => api(`/api/attachments?questionId=${questionId}`),
     enabled: !!questionId,
   });
-  const handleDownload = async (att: Attachment) => {
-    if (!att.downloadUrl) return;
-    if (att.folderPath) {
-      window.open(att.folderPath, '_blank');
-      return;
-    }
-    setDownloadingId(att.id);
-    try {
-      const response = await fetch(att.downloadUrl);
-      if (!response.ok) throw new Error('Download failed');
-      const isMock = response.headers.get('X-Mock-Download') === 'true';
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = att.filename || att.label || 'download';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      if (isMock) {
-        toast.success(`Preview generated for "${att.label}"`, {
-          description: "R2 storage is inactive; a realistic mock file was created.",
-          icon: <Info className="h-4 w-4 text-blue-500" />
-        });
-      } else {
-        toast.success(`Downloaded "${att.label}"`);
-      }
-    } catch (error: any) {
-      toast.error(`Download failed: ${error.message}`);
-    } finally {
-      setDownloadingId(null);
-    }
-  };
-  const uploadFile = async (file: File) => {
-    setIsUploading(true);
-    setUploadProgress(10);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('questionId', questionId);
-    formData.append('division', division);
-    formData.append('label', file.name);
-    try {
-      setUploadProgress(30);
-      const res = await fetch('/api/attachments', {
+  const addAttachmentMutation = useMutation({
+    mutationFn: (newAttachment: Omit<Attachment, 'id' | 'createdAt'>) =>
+      api<Attachment>('/api/attachments', {
         method: 'POST',
-        body: formData,
-      });
-      setUploadProgress(80);
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Upload failed');
-      }
-      const newAtt = json.data as Attachment;
-      toast.success(`File "${file.name}" uploaded successfully`);
-      queryClient.invalidateQueries({ queryKey: ['attachments', questionId] });
-      queryClient.invalidateQueries({ queryKey: ['questions', questionId] });
-      if (onAttachmentAdded && newAtt.downloadUrl) {
-        onAttachmentAdded(newAtt.label, newAtt.downloadUrl);
-      }
-    } catch (error: any) {
-      toast.error(`Upload failed: ${error.message}`);
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-  const deleteAttachmentMutation = useMutation({
-    mutationFn: (id: string) => api(`/api/attachments/${id}`, { method: 'DELETE' }),
+        body: JSON.stringify(newAttachment),
+      }),
     onSuccess: () => {
-      toast.success('Attachment deleted');
+      toast.success('Attachment added');
       queryClient.invalidateQueries({ queryKey: ['attachments', questionId] });
       queryClient.invalidateQueries({ queryKey: ['questions', questionId] });
+      setNewLabel('');
+      setNewPath('');
     },
     onError: (error) => {
-      toast.error(`Failed to delete attachment: ${error.message}`);
+      toast.error(`Failed to add attachment: ${error.message}`);
     },
   });
-  const formatSize = (bytes?: number) => {
-    if (bytes === undefined || bytes === null || bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-  const getFileIcon = (mimeType?: string) => {
-    if (!mimeType) return <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />;
-    if (mimeType.startsWith('image/')) return <ImageIcon className="h-4 w-4 text-pink-500 shrink-0" />;
-    if (mimeType.includes('pdf')) return <FileTextIcon className="h-4 w-4 text-red-500 shrink-0" />;
-    if (mimeType.includes('spreadsheetml') || mimeType.includes('excel')) return <FileIcon className="h-4 w-4 text-green-600 shrink-0" />;
-    return <FileIcon className="h-4 w-4 text-blue-500 shrink-0" />;
+  const handleAddAttachment = () => {
+    if (!newLabel.trim() || !newPath.trim()) {
+      toast.warning('Please provide both a label and a folder path.');
+      return;
+    }
+    // Basic URL validation
+    try {
+      new URL(newPath);
+    } catch (_) {
+      toast.error('Invalid folder path. Please enter a valid URL.');
+      return;
+    }
+    addAttachmentMutation.mutate({
+      questionId,
+      label: newLabel,
+      folderPath: newPath,
+      division,
+    });
   };
   return (
     <Card>
@@ -138,93 +75,49 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
         ) : attachments && attachments.length > 0 ? (
           <ul className="space-y-2">
             {attachments.map((att) => (
-              <motion.li key={att.id} whileHover={{ scale: 1.01 }} className="flex items-center justify-between p-2 rounded-md hover:bg-accent group border border-transparent hover:border-border">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  {att.r2Key || att.mimeType ? getFileIcon(att.mimeType) : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
-                  <div className="flex flex-col min-w-0">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => handleDownload(att)}
-                            className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-1 text-left"
-                            disabled={downloadingId === att.id}
-                          >
-                            {att.label}
-                            {downloadingId === att.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Download className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Click to download {att.r2Key ? 'from storage' : 'preview'}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                      {att.size ? <span>{formatSize(att.size)}</span> : null}
-                      <span>{formatDistanceToNow(new Date(att.createdAt), { addSuffix: true })}</span>
-                      {att.mimeType && <span className="uppercase">{att.mimeType.split('/')[1].split('.').pop()}</span>}
-                    </div>
-                  </div>
-                </div>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-                      {deleteAttachmentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Attachment?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to remove "{att.label}"? This will permanently delete the file from storage.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => deleteAttachmentMutation.mutate(att.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </motion.li>
+              <li key={att.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent">
+                <a
+                  href={att.folderPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 text-sm font-medium text-primary hover:underline"
+                >
+                  <Folder className="h-4 w-4 text-muted-foreground" />
+                  <span>{att.label}</span>
+                  <LinkIcon className="h-3 w-3 text-muted-foreground" />
+                </a>
+                <span className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(att.createdAt), { addSuffix: true })}
+                </span>
+              </li>
             ))}
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-4">No attachments yet.</p>
         )}
-        <div className="space-y-3 pt-4 border-t">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Upload New File</h4>
-            <span className="text-[10px] text-muted-foreground">Max 10MB</span>
-          </div>
-          <div
-            className="border-2 border-dashed rounded-lg p-6 text-center hover:bg-accent/50 transition-colors cursor-pointer relative"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              type="file"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
-              disabled={isUploading}
+        <div className="space-y-2 pt-4 border-t">
+          <h4 className="text-sm font-medium">Add New Attachment</h4>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              placeholder="Attachment Label (e.g., Report.pdf)"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              disabled={addAttachmentMutation.isPending}
             />
-            <div className="flex flex-col items-center gap-2">
-              <Upload className="h-8 w-8 text-muted-foreground" />
-              <p className="text-sm font-medium">Click to upload or drag and drop</p>
-              <p className="text-xs text-muted-foreground">PDF, DOCX, XLSX, PNG, JPG</p>
-            </div>
-            {isUploading && (
-              <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center p-4 rounded-lg">
-                <Loader2 className="h-6 w-6 animate-spin mb-2 text-primary" />
-                <Progress value={uploadProgress} className="w-full h-2" />
-                <p className="text-xs mt-2 font-medium">Uploading... {uploadProgress}%</p>
-              </div>
-            )}
+            <Input
+              placeholder="Folder Path (URL)"
+              value={newPath}
+              onChange={(e) => setNewPath(e.target.value)}
+              disabled={addAttachmentMutation.isPending}
+            />
+            <Button
+              onClick={handleAddAttachment}
+              disabled={addAttachmentMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add
+            </Button>
           </div>
         </div>
       </CardContent>
