@@ -6,11 +6,13 @@ import type { Question, QuestionStatus, Attachment, Comment, AuditLog } from "@s
 import { DIVISIONS, MOCK_AUDIT_LOGS } from "@shared/mock-data";
 function generateCSV(questions: Question[]): string {
   if (questions.length === 0) return '';
-  const headers = ['id', 'title', 'division', 'status', 'createdAt', 'updatedAt', 'body', 'answer'];
+  const headers = ['id', 'ticketNumber', 'memberName', 'title', 'division', 'status', 'createdAt', 'updatedAt', 'body', 'answer'];
   const csvRows = [
     headers.join(','),
     ...questions.map(q => [
       q.id,
+      q.ticketNumber,
+      `"${q.memberName.replace(/"/g, '""')}"`,
       `"${q.title.replace(/"/g, '""')}"`,
       q.division,
       q.status,
@@ -56,7 +58,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const allQuestions = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
     allQuestions.sort((a, b) => b.updatedAt - a.updatedAt);
     const recent = allQuestions.slice(0, 10);
-    return ok(c, recent.map(q => ({ id: q.id, title: q.title, status: q.status, updatedAt: q.updatedAt })));
+    return ok(c, recent.map(q => ({ id: q.id, title: q.title, status: q.status, updatedAt: q.updatedAt, ticketNumber: q.ticketNumber })));
   });
   // Questions CRUD
   app.get('/api/questions', async (c) => {
@@ -70,7 +72,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       const searchTerm = search.toLowerCase();
       items = items.filter(q =>
         q.title.toLowerCase().includes(searchTerm) ||
-        q.body.toLowerCase().includes(searchTerm)
+        q.body.toLowerCase().includes(searchTerm) ||
+        q.ticketNumber.toLowerCase().includes(searchTerm) ||
+        q.memberName.toLowerCase().includes(searchTerm)
       );
     }
     return ok(c, { ...page, items });
@@ -88,11 +92,16 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     return ok(c, await question.getState());
   });
   app.post('/api/questions', async (c) => {
-    const { title, body, division } = await c.req.json<Partial<Question>>();
-    if (!isStr(title) || !isStr(body) || !isStr(division)) return bad(c, 'title, body, and division are required');
+    const { title, body, division, memberName } = await c.req.json<Partial<Question>>();
+    if (!isStr(title) || !isStr(body) || !isStr(division) || !isStr(memberName)) return bad(c, 'title, body, division, and memberName are required');
+    const allQuestions = await QuestionEntity.list(c.env, null, 10000);
+    const nextId = allQuestions.items.length + 1;
+    const ticketNumber = `Q-${String(nextId).padStart(3, '0')}`;
     const now = Date.now();
     const newQuestion: Question = {
       id: crypto.randomUUID(),
+      ticketNumber,
+      memberName,
       title,
       body,
       division,
@@ -109,6 +118,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.patch('/api/questions/:id', async (c) => {
     const { id } = c.req.param();
     const patch = await c.req.json<Partial<Question>>();
+    if (patch.ticketNumber) {
+      return bad(c, 'Ticket number cannot be changed');
+    }
     const question = new QuestionEntity(c.env, id);
     if (!await question.exists()) return notFound(c, 'Question not found');
     await question.mutate(q => ({ ...q, ...patch, id: q.id, updatedAt: Date.now() }));

@@ -26,6 +26,8 @@ const questionSchema = z.object({
   division: z.string().min(1, 'Please select a division'),
   status: z.enum(['Draft', 'Submitted', 'Answered', 'Closed']),
   answer: z.string().optional(),
+  memberName: z.string().min(1, 'Member name is required'),
+  ticketNumber: z.string().optional(),
 });
 type QuestionFormData = z.infer<typeof questionSchema>;
 function CommentsSection({ questionId }: { questionId: string }) {
@@ -85,8 +87,9 @@ export default function QuestionEditor() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const isEditMode = location.pathname.endsWith('/edit');
+  const isEditMode = location.pathname.endsWith('/edit') || !location.pathname.endsWith('/new');
   const isNew = !id;
+  const isViewMode = id && !location.pathname.endsWith('/edit');
   const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({
     queryKey: ['questions', id],
     queryFn: () => api(`/api/questions/${id}`),
@@ -98,7 +101,7 @@ export default function QuestionEditor() {
   });
   const form = useForm<QuestionFormData>({
     resolver: zodResolver(questionSchema),
-    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '' },
+    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '' },
   });
   useEffect(() => {
     if (question) {
@@ -108,6 +111,8 @@ export default function QuestionEditor() {
         division: question.division,
         status: question.status,
         answer: question.answer || '',
+        memberName: question.memberName,
+        ticketNumber: question.ticketNumber,
       });
     }
   }, [question, form]);
@@ -130,7 +135,7 @@ export default function QuestionEditor() {
   });
   const onSubmit = (data: QuestionFormData) => mutation.mutate(data);
   const isLoading = isLoadingQuestion || isLoadingDivisions;
-  if (!isNew && !isEditMode) {
+  if (isViewMode) {
     return (
       <div className="min-h-screen bg-secondary/40">
         <ThemeToggle className="fixed top-4 right-4" />
@@ -144,10 +149,12 @@ export default function QuestionEditor() {
               <motion.div className="space-y-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <Card>
                   <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-2xl md:text-3xl">{question.title}</CardTitle>
-                      <Badge variant="secondary">{question.status}</Badge>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <Badge>{question.ticketNumber}</Badge>
+                      <Badge variant="secondary">Asked by: {question.memberName}</Badge>
+                      <Badge variant="outline">{question.status}</Badge>
                     </div>
+                    <CardTitle className="text-2xl md:text-3xl">{question.title}</CardTitle>
                     <CardDescription>Division: {question.division}</CardDescription>
                   </CardHeader>
                   <CardContent><p className="whitespace-pre-wrap">{question.body}</p></CardContent>
@@ -188,6 +195,10 @@ export default function QuestionEditor() {
                       </div>
                     ) : (
                       <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <FormField control={form.control} name="memberName" render={({ field }) => (<FormItem><FormLabel>Member Name</FormLabel><FormControl><Input placeholder="e.g., Dr. Rajesh Kumar" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          {!isNew && <FormField control={form.control} name="ticketNumber" render={({ field }) => (<FormItem><FormLabel>Ticket Number</FormLabel><FormControl><Input readOnly {...field} /></FormControl><FormMessage /></FormItem>)} />}
+                        </div>
                         <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Enter question title..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />

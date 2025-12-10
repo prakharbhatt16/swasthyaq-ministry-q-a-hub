@@ -19,6 +19,8 @@ export const MOCK_COMMENTS: Comment[] = [
 export const MOCK_QUESTIONS: Question[] = [
   {
     id: 'q1',
+    ticketNumber: 'Q-001',
+    memberName: 'MP Sharma',
     title: 'Inquiry on Vaccine Distribution Logistics in Rural Areas',
     body: 'This question pertains to the current state of vaccine distribution logistics. We need a detailed report on the challenges faced and measures being taken to ensure timely delivery to remote and rural locations across the country. Please include data on cold chain maintenance and last-mile delivery success rates.',
     division: 'Logistics',
@@ -32,6 +34,8 @@ export const MOCK_QUESTIONS: Question[] = [
   },
   {
     id: 'q2',
+    ticketNumber: 'Q-002',
+    memberName: 'Dr. Priya Singh',
     title: 'Status of Clinical Trials for New Antiviral Drug (AV-2024)',
     body: 'Requesting an update on the phase III clinical trials for the new antiviral drug AV-2024. What are the preliminary findings regarding efficacy and safety? When is the expected timeline for regulatory submission?',
     division: 'Clinical Services',
@@ -44,6 +48,8 @@ export const MOCK_QUESTIONS: Question[] = [
   },
   {
     id: 'q3',
+    ticketNumber: 'Q-003',
+    memberName: 'Admin User',
     title: 'Review of Public Health Awareness Campaigns for Dengue Prevention',
     body: 'An assessment is required for the effectiveness of recent public health awareness campaigns on dengue prevention. Please provide metrics on public engagement, and any observed correlation with a reduction in reported cases in campaign areas.',
     division: 'Public Health',

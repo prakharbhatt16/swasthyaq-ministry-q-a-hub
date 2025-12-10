@@ -47,6 +47,8 @@ export class QuestionEntity extends IndexedEntity<Question> {
     createdAt: 0,
     createdBy: "",
     updatedAt: 0,
+    memberName: "",
+    ticketNumber: "",
   };
   static seedData = MOCK_QUESTIONS;
 }

@@ -13,8 +13,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { api } from '@/lib/api-client';
 import type { AuditLog } from '@shared/types';
-import { Shield, LogIn, Database, Download, AlertTriangle, Loader2 } from 'lucide-react';
+import { Shield, LogIn, Database, Download, AlertTriangle, Loader2, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 export default function AdminPage() {
+  const navigate = useNavigate();
   const [loggedIn, setLoggedIn] = useState(false);
   const [password, setPassword] = useState('password');
   const passwordInputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +87,7 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8 md:py-10 lg:py-12">
           <header className="mb-8">
+            <Button variant="ghost" onClick={() => navigate('/')} className="mb-2 -ml-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Home</Button>
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Admin Controls</h1>
             <p className="text-muted-foreground mt-1">Manage application data and settings.</p>
           </header>

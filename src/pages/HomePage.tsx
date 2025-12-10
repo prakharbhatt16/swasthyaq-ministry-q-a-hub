@@ -3,23 +3,11 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ArrowRight, BarChart2, FilePlus } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
-import type { Metrics } from '@shared/types';
-const Stat = ({ value, label }: { value: number | string; label: string }) => (
-  <div className="text-center">
-    <p className="text-4xl md:text-5xl font-bold text-white">{value}</p>
-    <p className="text-sm text-white/80 uppercase tracking-wider">{label}</p>
-  </div>
-);
+import QuestionsPage from './QuestionsPage';
 export function HomePage() {
-  const { data: metrics } = useQuery<Metrics>({
-    queryKey: ['metrics'],
-    queryFn: () => api('/api/metrics'),
-  });
   return (
-    <div className="min-h-screen flex flex-col">
-      <ThemeToggle className="fixed top-4 right-4" />
+    <div className="min-h-screen flex flex-col bg-background">
+      <ThemeToggle className="fixed top-4 right-4 z-50" />
       <main className="flex-grow">
         <div className="relative isolate overflow-hidden bg-gray-900">
           <div
@@ -66,7 +54,7 @@ export function HomePage() {
                   </Button>
                   <Button asChild size="lg" variant="outline" className="text-white border-white/50 hover:bg-white/10 hover:text-white">
                     <Link to="/dashboard">
-                      View Dashboard <ArrowRight className="ml-2 h-5 w-5" />
+                      View Dashboard <BarChart2 className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>
                 </motion.div>
@@ -74,15 +62,9 @@ export function HomePage() {
             </div>
           </div>
         </div>
-        {/* Stats Section */}
-        <div className="bg-gray-800 py-12 sm:py-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-3 sm:gap-x-6 lg:gap-x-8">
-              <Stat value={metrics?.totalQuestions ?? '...'} label="Total Questions" />
-              <Stat value={metrics?.byStatus.find(s => s.status === 'Answered')?.count ?? '...'} label="Answered" />
-              <Stat value={metrics?.totalAttachments ?? '...'} label="Attachments" />
-            </div>
-          </div>
+        {/* Recent Questions Section */}
+        <div className="bg-secondary/40">
+          <QuestionsPage isHomePage />
         </div>
       </main>
       <footer className="bg-gray-900 text-center py-6">
