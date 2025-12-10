@@ -1,19 +1,34 @@
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { api } from '@/lib/api-client';
+import type { AuditLog } from '@shared/types';
 import { Shield, LogIn, Database, Download, AlertTriangle, Loader2 } from 'lucide-react';
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [password, setPassword] = useState('password');
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!loggedIn) {
+      passwordInputRef.current?.focus();
+    }
+  }, [loggedIn]);
+  const { data: auditLogs, isLoading: isLoadingLogs } = useQuery<AuditLog[]>({
+    queryKey: ['audit-logs'],
+    queryFn: () => api('/api/audit-logs'),
+    enabled: loggedIn,
+  });
   const seedMutation = useMutation({
     mutationFn: () => api('/api/admin/seed', { method: 'POST' }),
     onSuccess: () => {
@@ -56,7 +71,7 @@ export default function AdminPage() {
               <CardDescription>Enter the password to manage the application.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} />
+              <Input ref={passwordInputRef} type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} />
               <Button onClick={handleLogin} className="w-full bg-[#F38020] hover:bg-[#d86d11] text-white"><LogIn className="mr-2 h-4 w-4" /> Log In</Button>
             </CardContent>
           </Card>
@@ -73,46 +88,82 @@ export default function AdminPage() {
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Admin Controls</h1>
             <p className="text-muted-foreground mt-1">Manage application data and settings.</p>
           </header>
-          <main className="grid gap-8 md:grid-cols-2">
+          <main className="grid gap-8 lg:grid-cols-2">
+            <div className="space-y-8">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Database /> Data Management</CardTitle>
+                  <CardDescription>Actions related to application data.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Warning</AlertTitle>
+                    <AlertDescription>These actions are destructive and may result in data loss. Proceed with caution.</AlertDescription>
+                  </Alert>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" disabled={seedMutation.isPending}>
+                        {seedMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
+                        Re-seed Demo Data
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will reset all questions and attachments to the initial demo state. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => seedMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm & Re-seed</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Download /> Data Export</CardTitle>
+                  <CardDescription>Export all application data.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">Download a CSV file containing all questions in the database.</p>
+                  <Button onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
+                    {exportMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    Download All as CSV
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Database /> Data Management</CardTitle>
-                <CardDescription>Actions related to application data.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Warning</AlertTitle>
-                  <AlertDescription>These actions are destructive and may result in data loss. Proceed with caution.</AlertDescription>
-                </Alert>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={seedMutation.isPending}>
-                      {seedMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Database className="mr-2 h-4 w-4" />}
-                      Re-seed Demo Data
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will reset all questions and attachments to the initial demo state. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => seedMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm & Re-seed</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2"><Download /> Data Export</CardTitle>
-                <CardDescription>Export all application data.</CardDescription>
+                <CardTitle>Audit Logs</CardTitle>
+                <CardDescription>Recent administrative actions.</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">Download a CSV file containing all questions in the database.</p>
-                <Button onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
-                  {exportMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                  Download All as CSV
-                </Button>
+                <ScrollArea className="h-96">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Entity</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Timestamp</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoadingLogs ? (
+                        <TableRow><TableCell colSpan={4} className="text-center">Loading logs...</TableCell></TableRow>
+                      ) : (
+                        auditLogs?.map(log => (
+                          <TableRow key={log.id}>
+                            <TableCell className="font-medium">{log.action}</TableCell>
+                            <TableCell>{log.entity} ({log.entityId})</TableCell>
+                            <TableCell>{log.user}</TableCell>
+                            <TableCell>{format(new Date(log.timestamp), "PPpp")}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
               </CardContent>
             </Card>
           </main>

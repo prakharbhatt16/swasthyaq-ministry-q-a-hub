@@ -2,11 +2,11 @@ import { Hono } from "hono";
 import type { Env } from './core-utils';
 import { UserEntity, ChatBoardEntity, QuestionEntity, AttachmentEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-import type { Question, QuestionStatus, Attachment } from "@shared/types";
-import { DIVISIONS } from "@shared/mock-data";
+import type { Question, QuestionStatus, Attachment, Comment, AuditLog } from "@shared/types";
+import { DIVISIONS, MOCK_AUDIT_LOGS } from "@shared/mock-data";
 function generateCSV(questions: Question[]): string {
   if (questions.length === 0) return '';
-  const headers = ['id', 'title', 'division', 'status', 'createdAt', 'updatedAt', 'body'];
+  const headers = ['id', 'title', 'division', 'status', 'createdAt', 'updatedAt', 'body', 'answer'];
   const csvRows = [
     headers.join(','),
     ...questions.map(q => [
@@ -17,6 +17,7 @@ function generateCSV(questions: Question[]): string {
       new Date(q.createdAt).toISOString(),
       new Date(q.updatedAt).toISOString(),
       `"${q.body.replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+      `"${(q.answer || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`,
     ].join(','))
   ];
   return csvRows.join('\n');
@@ -67,8 +68,8 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (isStr(status)) items = items.filter(q => q.status === status);
     if (isStr(search)) {
       const searchTerm = search.toLowerCase();
-      items = items.filter(q => 
-        q.title.toLowerCase().includes(searchTerm) || 
+      items = items.filter(q =>
+        q.title.toLowerCase().includes(searchTerm) ||
         q.body.toLowerCase().includes(searchTerm)
       );
     }
@@ -100,6 +101,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       createdAt: now,
       createdBy: 'u1', // Mock user
       updatedAt: now,
+      comments: [],
     };
     await QuestionEntity.create(c.env, newQuestion);
     return ok(c, newQuestion);
@@ -126,6 +128,32 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const { id } = c.req.param();
     const deleted = await QuestionEntity.delete(c.env, id);
     return ok(c, { id, deleted });
+  });
+  // Comments
+  app.get('/api/questions/:id/comments', async (c) => {
+    const { id } = c.req.param();
+    const question = new QuestionEntity(c.env, id);
+    if (!await question.exists()) return notFound(c, 'Question not found');
+    const state = await question.getState();
+    return ok(c, state.comments || []);
+  });
+  app.post('/api/questions/:id/comments', async (c) => {
+    const { id } = c.req.param();
+    const { text } = await c.req.json<{ text: string }>();
+    if (!isStr(text)) return bad(c, 'text is required');
+    const question = new QuestionEntity(c.env, id);
+    if (!await question.exists()) return notFound(c, 'Question not found');
+    const newComment: Comment = {
+      id: crypto.randomUUID(),
+      text,
+      author: 'Admin User', // Mock user
+      createdAt: Date.now(),
+    };
+    await question.mutate(q => ({
+      ...q,
+      comments: [...(q.comments || []), newComment],
+    }));
+    return ok(c, newComment);
   });
   // Attachments CRUD
   app.get('/api/attachments', async (c) => {
@@ -167,5 +195,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await QuestionEntity.ensureSeed(c.env);
     await AttachmentEntity.ensureSeed(c.env);
     return ok(c, { seeded: true });
+  });
+  app.get('/api/audit-logs', async (c) => {
+    // In a real app, this would query a durable entity. Here, we return mock data.
+    return ok(c, MOCK_AUDIT_LOGS.sort((a, b) => b.timestamp - a.timestamp));
   });
 }

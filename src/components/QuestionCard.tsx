@@ -35,7 +35,7 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
           </div>
           <div className="flex-grow p-4">
             <div className="flex items-center gap-4">
-              <Link to={`/questions/${question.id}`} className="font-semibold hover:underline flex-grow line-clamp-1">{question.title}</Link>
+              <Link to={`/questions/${question.id}`} className="font-semibold hover:underline flex-grow line-clamp-1" aria-label={`View ${question.title} details`}>{question.title}</Link>
               <Badge variant="secondary" className="hidden sm:inline-flex">{question.division}</Badge>
               <TooltipProvider>
                 <Tooltip>
@@ -48,8 +48,8 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
             </div>
           </div>
           <div className="p-4 hidden md:flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm"><Link to={`/questions/${question.id}/edit`}><Edit className="h-4 w-4" /></Link></Button>
-            <Button asChild size="sm" className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to={`/questions/${question.id}`}><ArrowRight className="h-4 w-4" /></Link></Button>
+            <Button asChild variant="ghost" size="sm"><Link to={`/questions/${question.id}/edit`} aria-label={`Edit ${question.title}`}><Edit className="h-4 w-4" /></Link></Button>
+            <Button asChild size="sm" className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to={`/questions/${question.id}`} aria-label={`Open ${question.title}`}><ArrowRight className="h-4 w-4" /></Link></Button>
           </div>
         </Card>
       </motion.div>
@@ -80,11 +80,16 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
             </TooltipProvider>
           </div>
           <CardTitle className="pt-2 text-lg leading-tight">
-            <Link to={`/questions/${question.id}`} className="hover:text-primary/80 transition-colors">{question.title}</Link>
+            <Link to={`/questions/${question.id}`} className="hover:text-primary/80 transition-colors" aria-label={`View ${question.title} details`}>{question.title}</Link>
           </CardTitle>
         </CardHeader>
         <CardContent className="flex-grow">
           <p className="text-sm text-muted-foreground line-clamp-3">{question.body}</p>
+          {question.answer && (
+            <p className="text-xs text-muted-foreground mt-2 italic line-clamp-2">
+              <strong>Answer:</strong> {question.answer}
+            </p>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-4 border-t">
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -100,8 +105,8 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
             <div className="flex items-center gap-1"><Paperclip className="h-3 w-3" /><span>{question.attachmentIds.length}</span></div>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            <Button asChild variant="ghost" size="sm" className="flex-1 sm:flex-none"><Link to={`/questions/${question.id}/edit`}><Edit className="h-4 w-4 mr-2" /> Edit</Link></Button>
-            <Button asChild size="sm" className="flex-1 sm:flex-none bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to={`/questions/${question.id}`}>Open <ArrowRight className="h-4 w-4 ml-2" /></Link></Button>
+            <Button asChild variant="ghost" size="sm" className="flex-1 sm:flex-none"><Link to={`/questions/${question.id}/edit`} aria-label={`Edit ${question.title}`}><Edit className="h-4 w-4 mr-2" /> Edit</Link></Button>
+            <Button asChild size="sm" className="flex-1 sm:flex-none bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to={`/questions/${question.id}`} aria-label={`Open ${question.title}`}>Open <ArrowRight className="h-4 w-4 ml-2" /></Link></Button>
           </div>
         </CardFooter>
       </Card>

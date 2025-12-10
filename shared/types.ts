@@ -21,6 +21,12 @@ export interface ChatMessage {
 }
 // SwasthyaQ Types
 export type QuestionStatus = 'Draft' | 'Submitted' | 'Answered' | 'Closed';
+export interface Comment {
+  id: string;
+  text: string;
+  author: string;
+  createdAt: number;
+}
 export interface Question {
   id: string;
   title: string;
@@ -31,6 +37,8 @@ export interface Question {
   createdAt: number;
   createdBy: string; // Mock user ID
   updatedAt: number;
+  answer?: string;
+  comments?: Comment[];
 }
 export interface Attachment {
   id: string;
@@ -53,3 +61,11 @@ export interface RecentActivity {
   updatedAt: number;
 }
 export type ExportCSVResponse = string;
+export interface AuditLog {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  timestamp: number;
+  user: string;
+}

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,23 +38,25 @@ export default function QuestionsPage() {
       if (cursors[currentPage]) params.append('cursor', cursors[currentPage]!);
       return api(`/api/questions?${params.toString()}`);
     },
-    onSuccess: (pageData) => {
-      if (pageData.next && cursors.length === currentPage + 1) {
-        setCursors(prev => [...prev, pageData.next]);
-      }
-    }
   });
+  useEffect(() => {
+    if (data?.next && cursors.length === currentPage + 1) {
+      setCursors(prev => [...prev, data.next]);
+    }
+  }, [data, currentPage, cursors.length]);
   const allOnPageSelected = useMemo(() => {
-    if (!data?.items || data.items.length === 0) return false;
-    return data.items.every(q => selectedIds.has(q.id));
+    const items = data?.items ?? [];
+    if (items.length === 0) return false;
+    return items.every(q => selectedIds.has(q.id));
   }, [data?.items, selectedIds]);
   const toggleSelectAll = () => {
     setSelectedIds(prev => {
       const newSelected = new Set(prev);
+      const items = data?.items ?? [];
       if (allOnPageSelected) {
-        data?.items.forEach(q => newSelected.delete(q.id));
+        items.forEach(q => newSelected.delete(q.id));
       } else {
-        data?.items.forEach(q => newSelected.add(q.id));
+        items.forEach(q => newSelected.add(q.id));
       }
       return newSelected;
     });
@@ -71,7 +73,7 @@ export default function QuestionsPage() {
     });
   };
   const bulkUpdateMutation = useMutation({
-    mutationFn: ({ ids, status }: { ids: string[], status: QuestionStatus }) => 
+    mutationFn: ({ ids, status }: { ids: string[], status: QuestionStatus }) =>
       api('/api/questions/bulk-status', { method: 'POST', body: JSON.stringify({ ids, status }) }),
     onSuccess: () => {
       toast.success('Questions updated successfully');
@@ -107,7 +109,8 @@ export default function QuestionsPage() {
       );
     }
     if (error) return <p className="text-center text-destructive">Failed to load questions: {error.message}</p>;
-    if (!data?.items || data.items.length === 0) {
+    const items = data?.items ?? [];
+    if (items.length === 0) {
       return (
         <div className="text-center py-16 border-2 border-dashed rounded-lg">
           <FileQuestion className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -121,7 +124,7 @@ export default function QuestionsPage() {
     }
     return (
       <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
-        {data.items.map(question => (
+        {items.map(question => (
           <QuestionCard key={question.id} question={question} isSelected={selectedIds.has(question.id)} onToggleSelect={toggleSelect} viewMode={viewMode} />
         ))}
       </div>

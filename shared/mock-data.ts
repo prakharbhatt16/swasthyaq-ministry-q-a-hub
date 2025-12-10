@@ -1,4 +1,4 @@
-import type { User, Chat, ChatMessage, Question, Attachment } from './types';
+import type { User, Chat, ChatMessage, Question, Attachment, Comment, AuditLog } from './types';
 export const MOCK_USERS: User[] = [
   { id: 'u1', name: 'Admin User' },
   { id: 'u2', name: 'Ministry Staff' }
@@ -12,6 +12,10 @@ export const MOCK_CHAT_MESSAGES: ChatMessage[] = [
 // SwasthyaQ Mock Data
 export const DIVISIONS: string[] = ['Epidemiology', 'Clinical Services', 'Pharma', 'Public Health', 'Logistics'];
 const now = Date.now();
+export const MOCK_COMMENTS: Comment[] = [
+  { id: 'c1-q1', text: 'This is a critical inquiry. Please prioritize.', author: 'Dept. Head', createdAt: now - 86400000 * 3 },
+  { id: 'c2-q1', text: 'The report is attached, awaiting review.', author: 'Admin User', createdAt: now - 86400000 * 2 },
+];
 export const MOCK_QUESTIONS: Question[] = [
   {
     id: 'q1',
@@ -23,6 +27,8 @@ export const MOCK_QUESTIONS: Question[] = [
     createdAt: now - 86400000 * 5, // 5 days ago
     createdBy: 'u2',
     updatedAt: now - 86400000 * 2,
+    answer: 'The logistics for vaccine distribution in rural areas have been significantly improved over the last quarter. We have established 50 new cold chain points and partnered with local logistics providers, resulting in a 35% increase in delivery efficiency. The attached report provides a detailed breakdown of the new measures and their impact.',
+    comments: MOCK_COMMENTS,
   },
   {
     id: 'q2',
@@ -34,6 +40,7 @@ export const MOCK_QUESTIONS: Question[] = [
     createdAt: now - 86400000 * 2, // 2 days ago
     createdBy: 'u2',
     updatedAt: now - 86400000 * 2,
+    comments: [],
   },
   {
     id: 'q3',
@@ -45,6 +52,7 @@ export const MOCK_QUESTIONS: Question[] = [
     createdAt: now - 3600000, // 1 hour ago
     createdBy: 'u1',
     updatedAt: now - 3600000,
+    comments: [],
   },
 ];
 export const MOCK_ATTACHMENTS: Attachment[] = [
@@ -72,4 +80,10 @@ export const MOCK_ATTACHMENTS: Attachment[] = [
     division: 'Clinical Services',
     createdAt: now - 86400000 * 1,
   },
+];
+export const MOCK_AUDIT_LOGS: AuditLog[] = [
+  { id: 'l1', action: 'CREATE', entity: 'Question', entityId: 'q3', timestamp: now - 3600000, user: 'Admin User' },
+  { id: 'l2', action: 'UPDATE', entity: 'Question', entityId: 'q1', timestamp: now - 86400000 * 2, user: 'Ministry Staff' },
+  { id: 'l3', action: 'CREATE', entity: 'Attachment', entityId: 'a3', timestamp: now - 86400000 * 1, user: 'Ministry Staff' },
+  { id: 'l4', action: 'EXPORT', entity: 'CSV', entityId: 'all', timestamp: now - 1800000, user: 'Admin User' },
 ];
