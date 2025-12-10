@@ -15,6 +15,8 @@ import { HomePage } from '@/pages/HomePage'
 import Dashboard from '@/pages/Dashboard';
 import QuestionsPage from '@/pages/QuestionsPage';
 import QuestionEditor from '@/pages/QuestionEditor';
+import AttachmentsPage from '@/pages/AttachmentsPage';
+import AdminPage from '@/pages/AdminPage';
 import { Toaster } from '@/components/ui/sonner';
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
@@ -46,6 +48,16 @@ const router = createBrowserRouter([
   {
     path: "/questions/:id/edit",
     element: <QuestionEditor />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/attachments",
+    element: <AttachmentsPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/admin",
+    element: <AdminPage />,
     errorElement: <RouteErrorBoundary />,
   },
 ]);
