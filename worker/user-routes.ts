@@ -2,8 +2,25 @@ import { Hono } from "hono";
 import type { Env } from './core-utils';
 import { UserEntity, ChatBoardEntity, QuestionEntity, AttachmentEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-import type { Question, QuestionStatus } from "@shared/types";
+import type { Question, QuestionStatus, Attachment } from "@shared/types";
 import { DIVISIONS } from "@shared/mock-data";
+function generateCSV(questions: Question[]): string {
+  if (questions.length === 0) return '';
+  const headers = ['id', 'title', 'division', 'status', 'createdAt', 'updatedAt', 'body'];
+  const csvRows = [
+    headers.join(','),
+    ...questions.map(q => [
+      q.id,
+      `"${q.title.replace(/"/g, '""')}"`,
+      q.division,
+      q.status,
+      new Date(q.createdAt).toISOString(),
+      new Date(q.updatedAt).toISOString(),
+      `"${q.body.replace(/"/g, '""').replace(/\n/g, ' ')}"`,
+    ].join(','))
+  ];
+  return csvRows.join('\n');
+}
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.get('/api/test', (c) => c.json({ success: true, data: { name: 'CF Workers Demo' }}));
   // SWASTHYAQ ROUTES
@@ -32,15 +49,36 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       totalAttachments: attachments.length,
     });
   });
+  // GET Recent Activity
+  app.get('/api/recent-activity', async (c) => {
+    await QuestionEntity.ensureSeed(c.env);
+    const allQuestions = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
+    allQuestions.sort((a, b) => b.updatedAt - a.updatedAt);
+    const recent = allQuestions.slice(0, 10);
+    return ok(c, recent.map(q => ({ id: q.id, title: q.title, status: q.status, updatedAt: q.updatedAt })));
+  });
   // Questions CRUD
   app.get('/api/questions', async (c) => {
     await QuestionEntity.ensureSeed(c.env);
-    const { cursor, limit, division, status } = c.req.query();
+    const { cursor, limit, division, status, search } = c.req.query();
     const page = await QuestionEntity.list(c.env, cursor ?? null, limit ? Math.max(1, (Number(limit) | 0)) : 20);
     let items = page.items;
     if (isStr(division)) items = items.filter(q => q.division === division);
     if (isStr(status)) items = items.filter(q => q.status === status);
+    if (isStr(search)) {
+      const searchTerm = search.toLowerCase();
+      items = items.filter(q => 
+        q.title.toLowerCase().includes(searchTerm) || 
+        q.body.toLowerCase().includes(searchTerm)
+      );
+    }
     return ok(c, { ...page, items });
+  });
+  app.get('/api/questions/export-csv', async (c) => {
+    await QuestionEntity.ensureSeed(c.env);
+    const questions = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
+    const csv = generateCSV(questions);
+    return c.text(csv, 200, { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="questions-${Date.now()}.csv"` });
   });
   app.get('/api/questions/:id', async (c) => {
     const { id } = c.req.param();
@@ -74,6 +112,16 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await question.mutate(q => ({ ...q, ...patch, id: q.id, updatedAt: Date.now() }));
     return ok(c, await question.getState());
   });
+  app.post('/api/questions/bulk-status', async (c) => {
+    const { ids, status } = await c.req.json<{ ids: string[], status: QuestionStatus }>();
+    if (!Array.isArray(ids) || !isStr(status)) return bad(c, 'ids (array) and status (string) are required');
+    const updates = ids.map(id => {
+      const question = new QuestionEntity(c.env, id);
+      return question.patch({ status, updatedAt: Date.now() });
+    });
+    await Promise.all(updates);
+    return ok(c, { updated: ids.length });
+  });
   app.delete('/api/questions/:id', async (c) => {
     const { id } = c.req.param();
     const deleted = await QuestionEntity.delete(c.env, id);
@@ -83,10 +131,12 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.get('/api/attachments', async (c) => {
     await AttachmentEntity.ensureSeed(c.env);
     const { questionId } = c.req.query();
-    if (!isStr(questionId)) return bad(c, 'questionId is required');
     const allAttachments = await AttachmentEntity.list(c.env, null, 1000).then(p => p.items);
-    const filtered = allAttachments.filter(a => a.questionId === questionId);
-    return ok(c, filtered);
+    if (isStr(questionId)) {
+      const filtered = allAttachments.filter(a => a.questionId === questionId);
+      return ok(c, filtered);
+    }
+    return ok(c, allAttachments);
   });
   app.post('/api/attachments', async (c) => {
     const { questionId, label, folderPath, division } = await c.req.json<Partial<Attachment>>();
@@ -111,5 +161,11 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       }));
     }
     return ok(c, newAttachment);
+  });
+  // Admin Routes
+  app.post('/api/admin/seed', async (c) => {
+    await QuestionEntity.ensureSeed(c.env);
+    await AttachmentEntity.ensureSeed(c.env);
+    return ok(c, { seeded: true });
   });
 }

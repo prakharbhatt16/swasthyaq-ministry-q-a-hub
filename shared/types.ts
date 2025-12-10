@@ -46,3 +46,10 @@ export interface Metrics {
   totalQuestions: number;
   totalAttachments: number;
 }
+export interface RecentActivity {
+  id: string;
+  title: string;
+  status: QuestionStatus;
+  updatedAt: number;
+}
+export type ExportCSVResponse = string;
