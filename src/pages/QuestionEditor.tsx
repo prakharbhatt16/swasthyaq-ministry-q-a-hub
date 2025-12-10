@@ -121,6 +121,9 @@ export default function QuestionEditor() {
       toast.success(`Question ${isNew ? 'created' : 'updated'} successfully!`);
       queryClient.invalidateQueries({ queryKey: ['questions'] });
       queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      if (id) {
+        queryClient.invalidateQueries({ queryKey: ['attachments', id] });
+      }
       navigate(isNew ? `/questions/${data.id}` : `/questions/${id}`);
     },
     onError: (error) => toast.error(`Failed to save question: ${error.message}`),
@@ -173,36 +176,41 @@ export default function QuestionEditor() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <Card>
-                <CardHeader><CardTitle>{isNew ? 'Create New Question' : 'Edit Question'}</CardTitle></CardHeader>
-                <CardContent className="space-y-6">
-                  {isLoading && !isNew ? (
-                    <div className="space-y-4">
-                      <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-1/2" /><Skeleton className="h-32 w-full" />
-                    </div>
-                  ) : (
-                    <>
-                      <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Enter question title..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                <Card>
+                  <CardHeader><CardTitle>{isNew ? 'Create New Question' : 'Edit Question'}</CardTitle></CardHeader>
+                  <CardContent className="space-y-6">
+                    {isLoading && !isNew ? (
+                      <div className="space-y-4">
+                        <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-1/2" /><Skeleton className="h-32 w-full" />
                       </div>
-                      <FormField control={form.control} name="body" render={({ field }) => (<FormItem><FormLabel>Question Body</FormLabel><FormControl><Textarea placeholder="Detailed question text..." rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-              <div className="flex justify-end">
-                <Button type="submit" disabled={mutation.isPending} className="bg-[#F38020] hover:bg-[#d86d11] text-white">
-                  {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  {isNew ? 'Create Question' : 'Save Changes'}
-                </Button>
-              </div>
-            </form>
-          </Form>
+                    ) : (
+                      <>
+                        <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Enter question title..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        </div>
+                        <FormField control={form.control} name="body" render={({ field }) => (<FormItem><FormLabel>Question Body</FormLabel><FormControl><Textarea placeholder="Detailed question text..." rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+                {!isNew && id && (
+                  <AttachmentList questionId={id} division={form.watch('division') || question?.division || ''} />
+                )}
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={mutation.isPending} className="bg-[#F38020] hover:bg-[#d86d11] text-white">
+                    {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    {isNew ? 'Create Question' : 'Save Changes'}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </motion.div>
         </div>
       </div>
     </div>
