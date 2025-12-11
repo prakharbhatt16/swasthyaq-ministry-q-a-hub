@@ -56,7 +56,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
-        <RouterProvider router={router} />
+        <RouterProvider router={router} fallbackElement={<div>Loading...</div>} />
         <Toaster richColors closeButton />
       </ErrorBoundary>
     </QueryClientProvider>

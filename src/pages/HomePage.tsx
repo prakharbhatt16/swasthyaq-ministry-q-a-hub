@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { ArrowRight, BarChart2, FilePlus } from 'lucide-react';
 import QuestionsPage from './QuestionsPage';
 export function HomePage() {
@@ -31,7 +31,7 @@ export function HomePage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5 }}
                 >
-                  Swasthya<span className="text-[#F38020]">Q</span>
+                  Parliament Question Studio<span className="text-[#F38020]">Q</span>
                 </motion.h1>
                 <motion.p
                   className="mt-6 text-lg leading-8 text-gray-300"
@@ -39,7 +39,7 @@ export function HomePage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
                 >
-                  Ministry Q&A Hub — Streamlining parliamentary questions and answers for the Ministry of Health.
+                  Streamlining questions and answers for parliamentary sessions.
                 </motion.p>
                 <motion.div
                   className="mt-10 flex items-center justify-center gap-x-6"

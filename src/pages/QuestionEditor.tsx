@@ -14,10 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import type { Question, QuestionStatus, Comment } from '@shared/types';
+import type { Question, QuestionStatus, Comment, House } from '@shared/types';
 import { AttachmentList } from '@/components/AttachmentList';
 import { Badge } from '@/components/ui/badge';
 const questionSchema = z.object({
@@ -28,6 +28,7 @@ const questionSchema = z.object({
   answer: z.string().optional(),
   memberName: z.string().min(1, 'Member name is required'),
   ticketNumber: z.string().optional(),
+  house: z.enum(['Lok Sabha', 'Rajya Sabha'], { required_error: 'House is required' }),
 });
 type QuestionFormData = z.infer<typeof questionSchema>;
 function CommentsSection({ questionId }: { questionId: string }) {
@@ -101,7 +102,7 @@ export default function QuestionEditor() {
   });
   const form = useForm<QuestionFormData>({
     resolver: zodResolver(questionSchema),
-    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '' },
+    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha' },
   });
   useEffect(() => {
     if (question) {
@@ -113,6 +114,7 @@ export default function QuestionEditor() {
         answer: question.answer || '',
         memberName: question.memberName,
         ticketNumber: question.ticketNumber,
+        house: question.house,
       });
     }
   }, [question, form]);
@@ -152,6 +154,7 @@ export default function QuestionEditor() {
                     <div className="flex flex-wrap gap-2 mb-2">
                       <Badge>{question.ticketNumber}</Badge>
                       <Badge variant="secondary">Asked by: {question.memberName}</Badge>
+                      <Badge variant="outline">{question.house}</Badge>
                       <Badge variant="outline">{question.status}</Badge>
                     </div>
                     <CardTitle className="text-2xl md:text-3xl">{question.title}</CardTitle>
@@ -202,8 +205,9 @@ export default function QuestionEditor() {
                         <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Enter question title..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                          <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name="house" render={({ field }) => (<FormItem><FormLabel>House</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a house" /></SelectTrigger></FormControl><SelectContent>{(['Lok Sabha', 'Rajya Sabha'] as House[]).map((house) => (<SelectItem key={house} value={house}>{house}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
+                        <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="body" render={({ field }) => (<FormItem><FormLabel>Question Body</FormLabel><FormControl><Textarea placeholder="Detailed question text..." rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
                       </>

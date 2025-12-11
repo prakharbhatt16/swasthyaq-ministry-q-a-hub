@@ -41,6 +41,7 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
                 <p className="text-xs text-muted-foreground">by {question.memberName}</p>
               </div>
               <Badge variant="secondary" className="hidden sm:inline-flex">{question.division}</Badge>
+              <Badge variant="outline" className="hidden sm:inline-flex">{question.house}</Badge>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
@@ -72,7 +73,10 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
       <Card className={cn("h-full flex flex-col overflow-hidden transition-shadow duration-300", isSelected && "ring-2 ring-primary")}>
         <CardHeader>
           <div className="flex justify-between items-start gap-2 mb-2">
-            <Badge variant="secondary">{question.division}</Badge>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="secondary">{question.division}</Badge>
+              <Badge variant="outline">{question.house}</Badge>
+            </div>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
