@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { PlusCircle, Search, LayoutGrid, List, FileQuestion, Download, ChevronDown, Loader2, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, House } from '@shared/types';
@@ -137,66 +137,76 @@ export default function QuestionsPage({ isHomePage = false }: QuestionsPageProps
       </div>
     );
   };
-  const Wrapper = isHomePage ? 'div' : 'div';
-  const wrapperProps = isHomePage ? {} : { className: "min-h-screen bg-secondary/40" };
+  if (isHomePage) {
+    return (
+      <>
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Recent Questions</h1>
+            <p className="text-muted-foreground mt-1">Latest inquiries and their status.</p>
+          </div>
+          <Button asChild className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to="/questions/new"><PlusCircle className="h-4 w-4 mr-2" /> Create Question</Link></Button>
+        </header>
+        <main>{renderContent()}</main>
+      </>
+    );
+  }
   return (
-    <Wrapper {...wrapperProps}>
-      {!isHomePage && <ThemeToggle className="fixed top-4 right-4 z-50" />}
+    <div className="min-h-screen bg-secondary/40">
+      <ThemeToggle className="fixed top-4 right-4 z-50" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8 md:py-10 lg:py-12">
           <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <div>
-              {!isHomePage && <Button variant="ghost" onClick={() => navigate('/')} className="mb-2 -ml-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Home</Button>}
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">{isHomePage ? 'Recent Questions' : 'Questions'}</h1>
-              <p className="text-muted-foreground mt-1">{isHomePage ? 'Latest inquiries and their status.' : 'Browse, search, and manage all questions.'}</p>
+              <Button variant="ghost" onClick={() => navigate('/')} className="mb-2 -ml-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Home</Button>
+              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Questions</h1>
+              <p className="text-muted-foreground mt-1">Browse, search, and manage all questions.</p>
             </div>
             <Button asChild className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to="/questions/new"><PlusCircle className="h-4 w-4 mr-2" /> Create Question</Link></Button>
           </header>
-          {!isHomePage && (
-            <div className="mb-6 p-4 bg-card rounded-lg shadow-sm space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
-                <div className="relative w-full lg:col-span-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search by title, ticket #, or member..." className="pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                </div>
-                <div className="flex gap-2 w-full">
-                  <Select value={houseFilter} onValueChange={setHouseFilter}><SelectTrigger><SelectValue placeholder="Filter by house" /></SelectTrigger><SelectContent><SelectItem value="All">All Houses</SelectItem><SelectItem value="Lok Sabha">Lok Sabha</SelectItem><SelectItem value="Rajya Sabha">Rajya Sabha</SelectItem></SelectContent></Select>
-                </div>
-                <div className="flex gap-2 w-full">
-                  <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue placeholder="Filter by status" /></SelectTrigger><SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Submitted">Submitted</SelectItem><SelectItem value="Answered">Answered</SelectItem><SelectItem value="Closed">Closed</SelectItem></SelectContent></Select>
-                  <Select value={divisionFilter} onValueChange={setDivisionFilter}><SelectTrigger><SelectValue placeholder="Filter by division" /></SelectTrigger><SelectContent><SelectItem value="All">All Divisions</SelectItem>{DIVISIONS.map(div => <SelectItem key={div} value={div}>{div}</SelectItem>)}</SelectContent></Select>
-                </div>
-                <div className="flex items-center gap-2 justify-end">
-                  <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}><LayoutGrid className="h-4 w-4" /></Button>
-                  <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}><List className="h-4 w-4" /></Button>
-                </div>
+          <div className="mb-6 p-4 bg-card rounded-lg shadow-sm space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+              <div className="relative w-full lg:col-span-2">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search by title, ticket #, or member..." className="pl-10 focus:ring-2 focus:ring-ring focus:ring-offset-2" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               </div>
-              <AnimatePresence>
-                {selectedIds.size > 0 && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-primary/5 dark:bg-primary/10 p-3 rounded-md flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Checkbox checked={allOnPageSelected} onCheckedChange={toggleSelectAll} id="selectAll" />
-                      <label htmlFor="selectAll" className="text-sm font-medium">{selectedIds.size} selected</label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions <ChevronDown className="h-4 w-4 ml-2" /></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map(status => (
-                            <DropdownMenuItem key={status} onSelect={() => bulkUpdateMutation.mutate({ ids: Array.from(selectedIds), status })}>Set status to {status}</DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      <Button size="sm" variant="outline" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
-                        {exportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-                        Export
-                      </Button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <div className="flex gap-2 w-full">
+                <Select value={houseFilter} onValueChange={setHouseFilter}><SelectTrigger><SelectValue placeholder="Filter by house" /></SelectTrigger><SelectContent><SelectItem value="All">All Houses</SelectItem><SelectItem value="Lok Sabha">Lok Sabha</SelectItem><SelectItem value="Rajya Sabha">Rajya Sabha</SelectItem></SelectContent></Select>
+              </div>
+              <div className="flex gap-2 w-full">
+                <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue placeholder="Filter by status" /></SelectTrigger><SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Submitted">Submitted</SelectItem><SelectItem value="Answered">Answered</SelectItem><SelectItem value="Closed">Closed</SelectItem></SelectContent></Select>
+                <Select value={divisionFilter} onValueChange={setDivisionFilter}><SelectTrigger><SelectValue placeholder="Filter by division" /></SelectTrigger><SelectContent><SelectItem value="All">All Divisions</SelectItem>{DIVISIONS.map(div => <SelectItem key={div} value={div}>{div}</SelectItem>)}</SelectContent></Select>
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}><LayoutGrid className="h-4 w-4" /></Button>
+                <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}><List className="h-4 w-4" /></Button>
+              </div>
             </div>
-          )}
+            <AnimatePresence>
+              {selectedIds.size > 0 && (
+                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-primary/5 dark:bg-primary/10 p-3 rounded-md flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Checkbox checked={allOnPageSelected} onCheckedChange={toggleSelectAll} id="selectAll" />
+                    <label htmlFor="selectAll" className="text-sm font-medium">{selectedIds.size} selected</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions <ChevronDown className="h-4 w-4 ml-2" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map(status => (
+                          <DropdownMenuItem key={status} onSelect={() => bulkUpdateMutation.mutate({ ids: Array.from(selectedIds), status })}>Set status to {status}</DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button size="sm" variant="outline" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
+                      {exportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                      Export
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           <main>
             {renderContent()}
           </main>
@@ -209,6 +219,6 @@ export default function QuestionsPage({ isHomePage = false }: QuestionsPageProps
           )}
         </div>
       </div>
-    </Wrapper>
+    </div>
   );
 }

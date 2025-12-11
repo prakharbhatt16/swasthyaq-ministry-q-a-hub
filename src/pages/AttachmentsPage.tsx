@@ -11,6 +11,7 @@ import { api } from '@/lib/api-client';
 import type { Attachment } from '@shared/types';
 import { DIVISIONS } from '@shared/mock-data';
 import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 export default function AttachmentsPage() {
   const navigate = useNavigate();
   const [divisionFilter, setDivisionFilter] = useState('All');
@@ -59,29 +60,31 @@ export default function AttachmentsPage() {
             ) : Object.keys(groupedAndFilteredAttachments).length > 0 ? (
               <Accordion type="multiple" className="w-full space-y-4">
                 {Object.entries(groupedAndFilteredAttachments).map(([division, atts]) => (
-                  <AccordionItem value={division} key={division} className="bg-card border rounded-lg">
-                    <AccordionTrigger className="px-6 text-lg font-medium">
-                      {division} ({atts.length})
-                    </AccordionTrigger>
-                    <AccordionContent className="px-6 pb-4">
-                      <div className="space-y-2">
-                        {atts.map(att => (
-                          <Card key={att.id}>
-                            <CardContent className="p-3 flex justify-between items-center">
-                              <a href={att.folderPath} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm font-medium text-primary hover:underline">
-                                <Folder className="h-4 w-4 text-muted-foreground" />
-                                <span>{att.label}</span>
-                                <LinkIcon className="h-3 w-3 text-muted-foreground" />
-                              </a>
-                              <Link to={`/questions/${att.questionId}`} className="text-xs text-muted-foreground hover:underline">
-                                View Question
-                              </Link>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
+                  <motion.div key={division} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                    <AccordionItem value={division} className="bg-card border rounded-lg">
+                      <AccordionTrigger className="px-6 text-lg font-medium">
+                        {division} ({atts.length})
+                      </AccordionTrigger>
+                      <AccordionContent className="px-6 pb-4">
+                        <div className="space-y-2">
+                          {atts.map(att => (
+                            <Card key={att.id} className="hover:bg-accent transition-colors">
+                              <CardContent className="p-3 flex justify-between items-center">
+                                <a href={att.folderPath} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm font-medium text-primary hover:underline">
+                                  <Folder className="h-4 w-4 text-muted-foreground" />
+                                  <span>{att.label}</span>
+                                  <LinkIcon className="h-3 w-3 text-muted-foreground" />
+                                </a>
+                                <Link to={`/questions/${att.questionId}`} className="text-xs text-muted-foreground hover:underline">
+                                  View Question
+                                </Link>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </motion.div>
                 ))}
               </Accordion>
             ) : (
@@ -89,6 +92,7 @@ export default function AttachmentsPage() {
                 <Paperclip className="mx-auto h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-medium">No attachments found</h3>
                 <p className="mt-1 text-sm text-muted-foreground">There are no attachments matching your criteria.</p>
+                <Button asChild className="mt-4"><Link to="/questions/new">Create a Question</Link></Button>
               </div>
             )}
           </main>
