@@ -78,7 +78,8 @@ function updateWranglerJsonc() {
 
 function runSetupCommands() {
     const commands = [
-    "bun add react-markdown remark-gfm xlsx"
+    "bun add react-markdown remark-gfm xlsx",
+    "bun install react-markdown remark-gfm xlsx"
 ];
     
     if (commands.length === 0) {
