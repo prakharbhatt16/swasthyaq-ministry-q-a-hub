@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Paperclip, PlusCircle, Trash2, Folder, Link as LinkIcon } from 'lucide-react';
+import { Paperclip, PlusCircle, Folder, Link as LinkIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,11 +9,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api-client';
 import type { Attachment } from '@shared/types';
 import { formatDistanceToNow } from 'date-fns';
+import { motion } from 'framer-motion';
 interface AttachmentListProps {
   questionId: string;
   division: string;
+  onAttachmentAdded?: (label: string, path: string) => void;
 }
-export function AttachmentList({ questionId, division }: AttachmentListProps) {
+export function AttachmentList({ questionId, division, onAttachmentAdded }: AttachmentListProps) {
   const queryClient = useQueryClient();
   const [newLabel, setNewLabel] = useState('');
   const [newPath, setNewPath] = useState('');
@@ -32,6 +34,9 @@ export function AttachmentList({ questionId, division }: AttachmentListProps) {
       toast.success('Attachment added');
       queryClient.invalidateQueries({ queryKey: ['attachments', questionId] });
       queryClient.invalidateQueries({ queryKey: ['questions', questionId] });
+      if (onAttachmentAdded) {
+        onAttachmentAdded(newLabel, newPath);
+      }
       setNewLabel('');
       setNewPath('');
     },
@@ -44,7 +49,6 @@ export function AttachmentList({ questionId, division }: AttachmentListProps) {
       toast.warning('Please provide both a label and a folder path.');
       return;
     }
-    // Basic URL validation
     try {
       new URL(newPath);
     } catch (_) {
@@ -75,7 +79,7 @@ export function AttachmentList({ questionId, division }: AttachmentListProps) {
         ) : attachments && attachments.length > 0 ? (
           <ul className="space-y-2">
             {attachments.map((att) => (
-              <li key={att.id} className="flex items-center justify-between p-2 rounded-md hover:bg-accent">
+              <motion.li key={att.id} whileHover={{ scale: 1.02 }} className="flex items-center justify-between p-2 rounded-md hover:bg-accent">
                 <a
                   href={att.folderPath}
                   target="_blank"
@@ -89,7 +93,7 @@ export function AttachmentList({ questionId, division }: AttachmentListProps) {
                 <span className="text-xs text-muted-foreground">
                   {formatDistanceToNow(new Date(att.createdAt), { addSuffix: true })}
                 </span>
-              </li>
+              </motion.li>
             ))}
           </ul>
         ) : (

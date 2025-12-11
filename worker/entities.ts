@@ -50,6 +50,8 @@ export class QuestionEntity extends IndexedEntity<Question> {
     memberName: "",
     ticketNumber: "",
     house: "Lok Sabha",
+    tags: [],
+    inlineAttachments: [],
   };
   static seedData = MOCK_QUESTIONS;
 }

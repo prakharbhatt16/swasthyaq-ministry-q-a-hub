@@ -22,7 +22,7 @@ export const MOCK_QUESTIONS: Question[] = [
     ticketNumber: 'Q-001',
     memberName: 'MP Sharma',
     title: 'Inquiry on Vaccine Distribution Logistics in Rural Areas',
-    body: 'This question pertains to the current state of vaccine distribution logistics. We need a detailed report on the challenges faced and measures being taken to ensure timely delivery to remote and rural locations across the country. Please include data on cold chain maintenance and last-mile delivery success rates.',
+    body: 'This question pertains to the current state of vaccine distribution logistics. We need a detailed report on the challenges faced and measures being taken to ensure timely delivery to remote and rural locations across the country. Please include data on cold chain maintenance and last-mile delivery success rates. See attached report: [Distribution Report Q2 2024.pdf](https://example.com/shared-drive/logistics/q2-report)',
     division: 'Logistics',
     status: 'Admitted',
     attachmentIds: ['a1'],
@@ -32,6 +32,8 @@ export const MOCK_QUESTIONS: Question[] = [
     answer: 'The logistics for vaccine distribution in rural areas have been significantly improved over the last quarter. We have established 50 new cold chain points and partnered with local logistics providers, resulting in a 35% increase in delivery efficiency. The attached report provides a detailed breakdown of the new measures and their impact.',
     comments: MOCK_COMMENTS,
     house: 'Lok Sabha',
+    tags: ['vaccine', 'logistics', 'rural'],
+    inlineAttachments: [{ type: 'body', attachmentId: 'a1' }],
   },
   {
     id: 'q2',
@@ -47,6 +49,8 @@ export const MOCK_QUESTIONS: Question[] = [
     updatedAt: now - 86400000 * 2,
     comments: [],
     house: 'Rajya Sabha',
+    tags: ['clinical', 'trial', 'antiviral'],
+    inlineAttachments: [],
   },
   {
     id: 'q3',
@@ -62,6 +66,8 @@ export const MOCK_QUESTIONS: Question[] = [
     updatedAt: now - 3600000,
     comments: [],
     house: 'Lok Sabha',
+    tags: ['publichealth', 'dengue', 'awareness'],
+    inlineAttachments: [],
   },
 ];
 export const MOCK_ATTACHMENTS: Attachment[] = [
