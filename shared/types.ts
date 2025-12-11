@@ -20,7 +20,7 @@ export interface ChatMessage {
   ts: number; // epoch millis
 }
 // SwasthyaQ Types
-export type QuestionStatus = 'Draft' | 'Submitted' | 'Answered' | 'Closed';
+export type QuestionStatus = 'Draft' | 'Submitted' | 'Admitted' | 'Non-Admitted' | 'Answered' | 'Closed';
 export type House = 'Lok Sabha' | 'Rajya Sabha';
 export interface Comment {
   id: string;

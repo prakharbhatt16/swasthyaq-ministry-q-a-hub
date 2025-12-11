@@ -175,8 +175,7 @@ export default function AdminPage() {
                         )}
                       </TableBody>
                     </Table>
-                  </Table>
-                </ScrollArea>
+                  </ScrollArea>
               </CardContent>
               </Card>
             </motion.div>

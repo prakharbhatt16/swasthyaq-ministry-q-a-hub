@@ -10,12 +10,19 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileText, PlusCircle, Paperclip, Activity, CheckCircle, Clock, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import type { Metrics, RecentActivity, House } from '@shared/types';
+import type { Metrics, RecentActivity, House, QuestionStatus } from '@shared/types';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-const COLORS = ['#667EEA', '#F38020', '#374151', '#4CAF50', '#FFC107'];
+const COLORS: { [key in QuestionStatus]?: string } = {
+  Answered: '#4CAF50',
+  Submitted: '#FFC107',
+  Draft: '#9E9E9E',
+  Closed: '#673AB7',
+  Admitted: '#3B82F6',
+  'Non-Admitted': '#F59E0B',
+};
 const StatCard = ({ title, value, icon: Icon }: { title: string; value: number | string; icon: React.ElementType }) => (
-  <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}>
+  <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} className="opacity-100 block">
     <Card className="transition-all hover:shadow-lg hover:-translate-y-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
@@ -43,7 +50,7 @@ export default function Dashboard() {
     queryFn: () => api('/api/recent-activity'),
   });
   const error = metricsError || activityError;
-  const statusCounts = metrics?.byStatus.reduce((acc, s) => ({ ...acc, [s.status]: s.count }), { Draft: 0, Submitted: 0, Answered: 0, Closed: 0 }) || { Draft: 0, Submitted: 0, Answered: 0, Closed: 0 };
+  const statusCounts = metrics?.byStatus.reduce((acc, s) => ({ ...acc, [s.status]: s.count }), { Draft: 0, Submitted: 0, Admitted: 0, 'Non-Admitted': 0, Answered: 0, Closed: 0 }) || { Draft: 0, Submitted: 0, Admitted: 0, 'Non-Admitted': 0, Answered: 0, Closed: 0 };
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen text-destructive">
@@ -87,13 +94,13 @@ export default function Dashboard() {
                 <>
                   <StatCard title="Total Questions" value={metrics?.totalQuestions ?? 0} icon={FileText} />
                   <StatCard title="Answered" value={statusCounts.Answered} icon={CheckCircle} />
-                  <StatCard title="Pending" value={statusCounts.Submitted + statusCounts.Draft} icon={Clock} />
+                  <StatCard title="Pending" value={statusCounts.Submitted + statusCounts.Draft + statusCounts.Admitted} icon={Clock} />
                   <StatCard title="Total Attachments" value={metrics?.totalAttachments ?? 0} icon={Paperclip} />
                 </>
               )}
             </motion.div>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-5">
-              <Card className="lg:col-span-3">
+              <Card className="lg:col-span-3 opacity-100 block">
                 <CardHeader><CardTitle>Questions by Division</CardTitle></CardHeader>
                 <CardContent>
                   {isLoadingMetrics ? <Skeleton className="h-72" /> : (
@@ -113,15 +120,15 @@ export default function Dashboard() {
                   )}
                 </CardContent>
               </Card>
-              <Card className="lg:col-span-2">
+              <Card className="lg:col-span-2 opacity-100 block">
                 <CardHeader><CardTitle>Questions by Status</CardTitle></CardHeader>
                 <CardContent>
                   {isLoadingMetrics ? <Skeleton className="h-72" /> : (
                     <ResponsiveContainer width="100%" height={300}>
                       <PieChart>
                         <Pie data={metrics?.byStatus} cx="50%" cy="50%" labelLine={false} outerRadius={80} fill="#8884d8" dataKey="count" nameKey="status" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                          {metrics?.byStatus.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} cursor="pointer" onClick={() => navigate(`/questions?status=${entry.status}`)} />
+                          {metrics?.byStatus.map((entry) => (
+                            <Cell key={`cell-${entry.status}`} fill={COLORS[entry.status] || '#000000'} cursor="pointer" onClick={() => navigate(`/questions?status=${entry.status}`)} />
                           ))}
                         </Pie>
                         <Tooltip />
@@ -132,7 +139,7 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
-            <Card>
+            <Card className="opacity-100 block">
               <CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />Recent Activity</CardTitle></CardHeader>
               <CardContent>
                 {isLoadingActivity ? <Skeleton className="h-40" /> : (

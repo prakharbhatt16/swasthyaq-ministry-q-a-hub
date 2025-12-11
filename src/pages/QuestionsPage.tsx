@@ -174,7 +174,7 @@ export default function QuestionsPage({ isHomePage = false }: QuestionsPageProps
                 <Select value={houseFilter} onValueChange={setHouseFilter}><SelectTrigger><SelectValue placeholder="Filter by house" /></SelectTrigger><SelectContent><SelectItem value="All">All Houses</SelectItem><SelectItem value="Lok Sabha">Lok Sabha</SelectItem><SelectItem value="Rajya Sabha">Rajya Sabha</SelectItem></SelectContent></Select>
               </div>
               <div className="flex gap-2 w-full">
-                <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue placeholder="Filter by status" /></SelectTrigger><SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Submitted">Submitted</SelectItem><SelectItem value="Answered">Answered</SelectItem><SelectItem value="Closed">Closed</SelectItem></SelectContent></Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue placeholder="Filter by status" /></SelectTrigger><SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Submitted">Submitted</SelectItem><SelectItem value="Admitted">Admitted</SelectItem><SelectItem value="Non-Admitted">Non-Admitted</SelectItem><SelectItem value="Answered">Answered</SelectItem><SelectItem value="Closed">Closed</SelectItem></SelectContent></Select>
                 <Select value={divisionFilter} onValueChange={setDivisionFilter}><SelectTrigger><SelectValue placeholder="Filter by division" /></SelectTrigger><SelectContent><SelectItem value="All">All Divisions</SelectItem>{DIVISIONS.map(div => <SelectItem key={div} value={div}>{div}</SelectItem>)}</SelectContent></Select>
               </div>
               <div className="flex items-center gap-2 justify-end">
@@ -193,7 +193,7 @@ export default function QuestionsPage({ isHomePage = false }: QuestionsPageProps
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions <ChevronDown className="h-4 w-4 ml-2" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent>
-                        {(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map(status => (
+                        {(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'] as QuestionStatus[]).map(status => (
                           <DropdownMenuItem key={status} onSelect={() => bulkUpdateMutation.mutate({ ids: Array.from(selectedIds), status })}>Set status to {status}</DropdownMenuItem>
                         ))}
                       </DropdownMenuContent>

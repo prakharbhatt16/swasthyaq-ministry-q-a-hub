@@ -20,17 +20,26 @@ import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, Comment, House } from '@shared/types';
 import { AttachmentList } from '@/components/AttachmentList';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 const questionSchema = z.object({
   title: z.string().min(10, 'Title must be at least 10 characters long'),
   body: z.string().min(20, 'Body must be at least 20 characters long'),
   division: z.string().min(1, 'Please select a division'),
-  status: z.enum(['Draft', 'Submitted', 'Answered', 'Closed']),
+  status: z.enum(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed']),
   answer: z.string().optional(),
   memberName: z.string().min(1, 'Member name is required'),
   ticketNumber: z.string().optional(),
   house: z.enum(['Lok Sabha', 'Rajya Sabha']),
 });
 type QuestionFormData = z.infer<typeof questionSchema>;
+const statusColors: { [key in QuestionStatus]: string } = {
+  Draft: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+  Submitted: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
+  Admitted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
+  'Non-Admitted': 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300',
+  Answered: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
+  Closed: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300',
+};
 function CommentsSection({ questionId }: { questionId: string }) {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState('');
@@ -155,7 +164,7 @@ export default function QuestionEditor() {
                       <Badge>{question.ticketNumber}</Badge>
                       <Badge variant="secondary">Asked by: {question.memberName}</Badge>
                       <Badge variant="outline">{question.house}</Badge>
-                      <Badge variant="outline">{question.status}</Badge>
+                      <Badge className={cn(statusColors[question.status])}>{question.status}</Badge>
                     </div>
                     <CardTitle className="text-2xl md:text-3xl">{question.title}</CardTitle>
                     <CardDescription>Division: {question.division}</CardDescription>
@@ -207,7 +216,7 @@ export default function QuestionEditor() {
                           <FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                           <FormField control={form.control} name="house" render={({ field }) => (<FormItem><FormLabel>House</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a house" /></SelectTrigger></FormControl><SelectContent>{(['Lok Sabha', 'Rajya Sabha'] as House[]).map((house) => (<SelectItem key={house} value={house}>{house}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
-                        <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="body" render={({ field }) => (<FormItem><FormLabel>Question Body</FormLabel><FormControl><Textarea placeholder="Detailed question text..." rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
                       </>

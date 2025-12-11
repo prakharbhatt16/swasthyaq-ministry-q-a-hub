@@ -24,7 +24,7 @@ export const MOCK_QUESTIONS: Question[] = [
     title: 'Inquiry on Vaccine Distribution Logistics in Rural Areas',
     body: 'This question pertains to the current state of vaccine distribution logistics. We need a detailed report on the challenges faced and measures being taken to ensure timely delivery to remote and rural locations across the country. Please include data on cold chain maintenance and last-mile delivery success rates.',
     division: 'Logistics',
-    status: 'Answered',
+    status: 'Admitted',
     attachmentIds: ['a1'],
     createdAt: now - 86400000 * 5, // 5 days ago
     createdBy: 'u2',
@@ -40,7 +40,7 @@ export const MOCK_QUESTIONS: Question[] = [
     title: 'Status of Clinical Trials for New Antiviral Drug (AV-2024)',
     body: 'Requesting an update on the phase III clinical trials for the new antiviral drug AV-2024. What are the preliminary findings regarding efficacy and safety? When is the expected timeline for regulatory submission?',
     division: 'Clinical Services',
-    status: 'Submitted',
+    status: 'Non-Admitted',
     attachmentIds: ['a2', 'a3'],
     createdAt: now - 86400000 * 2, // 2 days ago
     createdBy: 'u2',

@@ -42,7 +42,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (isStr(house) && (house.toLowerCase() === 'lok sabha' || house.toLowerCase() === 'rajya sabha')) {
       questions = questions.filter(q => q.house.toLowerCase() === house.toLowerCase());
     }
-    const byStatus: Record<QuestionStatus, number> = { Draft: 0, Submitted: 0, Answered: 0, Closed: 0 };
+    const byStatus: Record<QuestionStatus, number> = { Draft: 0, Submitted: 0, Admitted: 0, 'Non-Admitted': 0, Answered: 0, Closed: 0 };
     const byDivision: Record<string, number> = {};
     const byHouse: Record<string, number> = {};
     for (const q of questions) {
