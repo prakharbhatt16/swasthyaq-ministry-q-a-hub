@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,8 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send } from 'lucide-react';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Paperclip } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, Comment, House } from '@shared/types';
 import { AttachmentList } from '@/components/AttachmentList';
@@ -30,6 +32,8 @@ const questionSchema = z.object({
   memberName: z.string().min(1, 'Member name is required'),
   ticketNumber: z.string().optional(),
   house: z.enum(['Lok Sabha', 'Rajya Sabha']),
+  tags: z.array(z.string().min(1)).optional(),
+  inlineAttachments: z.array(z.object({ type: z.enum(['body', 'answer']), attachmentId: z.string() })).optional(),
 });
 type QuestionFormData = z.infer<typeof questionSchema>;
 const statusColors: { [key in QuestionStatus]: string } = {
@@ -43,53 +47,18 @@ const statusColors: { [key in QuestionStatus]: string } = {
 function CommentsSection({ questionId }: { questionId: string }) {
   const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState('');
-  const { data: comments, isLoading } = useQuery<Comment[]>({
-    queryKey: ['comments', questionId],
-    queryFn: () => api(`/api/questions/${questionId}/comments`),
-  });
+  const { data: comments, isLoading } = useQuery<Comment[]>({ queryKey: ['comments', questionId], queryFn: () => api(`/api/questions/${questionId}/comments`) });
   const mutation = useMutation({
-    mutationFn: (text: string) => api<Comment>(`/api/questions/${questionId}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ text }),
-    }),
-    onSuccess: () => {
-      toast.success('Comment added');
-      setNewComment('');
-      queryClient.invalidateQueries({ queryKey: ['comments', questionId] });
-    },
+    mutationFn: (text: string) => api<Comment>(`/api/questions/${questionId}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
+    onSuccess: () => { toast.success('Comment added'); setNewComment(''); queryClient.invalidateQueries({ queryKey: ['comments', questionId] }); },
     onError: (err) => toast.error(`Failed to add comment: ${err.message}`),
   });
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      mutation.mutate(newComment.trim());
-    }
-  };
+  const handleAddComment = () => { if (newComment.trim()) mutation.mutate(newComment.trim()); };
   return (
-    <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Comments</CardTitle></CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {isLoading ? <Skeleton className="h-20" /> : (
-            comments && comments.length > 0 ? (
-              <ul className="space-y-3">
-                {comments.map(comment => (
-                  <li key={comment.id} className="text-sm p-2 bg-secondary rounded-md">
-                    <p>{comment.text}</p>
-                    <div className="text-xs text-muted-foreground mt-1 text-right">
-                      - {comment.author}, {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="text-sm text-muted-foreground text-center py-4">No comments yet.</p>
-          )}
-          <div className="flex gap-2 pt-4 border-t">
-            <Input placeholder="Add a comment..." value={newComment} onChange={e => setNewComment(e.target.value)} disabled={mutation.isPending} />
-            <Button onClick={handleAddComment} disabled={mutation.isPending}><Send className="h-4 w-4" /></Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <Card><CardHeader><CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Comments</CardTitle></CardHeader><CardContent><div className="space-y-4">
+          {isLoading ? <Skeleton className="h-20" /> : (comments && comments.length > 0 ? (<ul className="space-y-3">{comments.map(comment => (<li key={comment.id} className="text-sm p-2 bg-secondary rounded-md"><p>{comment.text}</p><div className="text-xs text-muted-foreground mt-1 text-right">- {comment.author}, {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}</div></li>))}</ul>) : <p className="text-sm text-muted-foreground text-center py-4">No comments yet.</p>)}
+          <div className="flex gap-2 pt-4 border-t"><Input placeholder="Add a comment..." value={newComment} onChange={e => setNewComment(e.target.value)} disabled={mutation.isPending} /><Button onClick={handleAddComment} disabled={mutation.isPending}><Send className="h-4 w-4" /></Button></div>
+        </div></CardContent></Card>
   );
 }
 export default function QuestionEditor() {
@@ -97,146 +66,86 @@ export default function QuestionEditor() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const isEditMode = location.pathname.endsWith('/edit') || !location.pathname.endsWith('/new');
   const isNew = !id;
   const isViewMode = id && !location.pathname.endsWith('/edit');
-  const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({
-    queryKey: ['questions', id],
-    queryFn: () => api(`/api/questions/${id}`),
-    enabled: !!id,
-  });
-  const { data: divisions, isLoading: isLoadingDivisions } = useQuery<string[]>({
-    queryKey: ['divisions'],
-    queryFn: () => api('/api/divisions'),
-  });
-  const form = useForm<QuestionFormData>({
-    resolver: zodResolver(questionSchema),
-    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha' },
-  });
-  useEffect(() => {
-    if (question) {
-      form.reset({
-        title: question.title,
-        body: question.body,
-        division: question.division,
-        status: question.status,
-        answer: question.answer || '',
-        memberName: question.memberName,
-        ticketNumber: question.ticketNumber,
-        house: question.house,
-      });
-    }
-  }, [question, form]);
+  const [tagInput, setTagInput] = useState('');
+  const [insertTarget, setInsertTarget] = useState<'body' | 'answer'>('body');
+  const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({ queryKey: ['questions', id], queryFn: () => api(`/api/questions/${id}`), enabled: !!id });
+  const { data: divisions, isLoading: isLoadingDivisions } = useQuery<string[]>({ queryKey: ['divisions'], queryFn: () => api('/api/divisions') });
+  const form = useForm<QuestionFormData>({ resolver: zodResolver(questionSchema), defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha', tags: [] } });
+  useEffect(() => { if (question) form.reset({ ...question, answer: question.answer || '', tags: question.tags || [] }); }, [question, form]);
   const mutation = useMutation({
-    mutationFn: (data: Partial<Question>) => {
-      const url = isNew ? '/api/questions' : `/api/questions/${id}`;
-      const method = isNew ? 'POST' : 'PATCH';
-      return api<Question>(url, { method, body: JSON.stringify(data) });
-    },
+    mutationFn: (data: Partial<Question>) => api<Question>(isNew ? '/api/questions' : `/api/questions/${id}`, { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(data) }),
     onSuccess: (data) => {
       toast.success(`Question ${isNew ? 'created' : 'updated'} successfully!`);
       queryClient.invalidateQueries({ queryKey: ['questions'] });
       queryClient.invalidateQueries({ queryKey: ['metrics'] });
-      if (id) {
-        queryClient.invalidateQueries({ queryKey: ['attachments', id] });
-      }
+      if (id) queryClient.invalidateQueries({ queryKey: ['attachments', id] });
       navigate(isNew ? `/questions/${data.id}` : `/questions/${id}`);
     },
     onError: (error) => toast.error(`Failed to save question: ${error.message}`),
   });
   const onSubmit = (data: QuestionFormData) => mutation.mutate(data);
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const newTags = tagInput.split(',').map(t => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean);
+      if (newTags.length > 0) {
+        const currentTags = form.getValues('tags') || [];
+        form.setValue('tags', [...new Set([...currentTags, ...newTags])]);
+        setTagInput('');
+      }
+    }
+  };
+  const removeTag = (tagToRemove: string) => {
+    const currentTags = form.getValues('tags') || [];
+    form.setValue('tags', currentTags.filter(t => t !== tagToRemove));
+  };
+  const handleInsertAttachment = (label: string, path: string) => {
+    const markdownLink = `\n[${label}](${path})`;
+    const currentVal = form.getValues(insertTarget) || '';
+    form.setValue(insertTarget, currentVal + markdownLink);
+    toast.info(`Attachment link inserted into ${insertTarget === 'body' ? 'Question Body' : 'Answer'}.`);
+  };
   const isLoading = isLoadingQuestion || isLoadingDivisions;
   if (isViewMode) {
     return (
-      <div className="min-h-screen bg-secondary/40">
-        <ThemeToggle className="fixed top-4 right-4" />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-8 md:py-10 lg:py-12">
-            <div className="flex justify-between items-center mb-4">
-              <Button variant="ghost" onClick={() => navigate('/questions')}><ArrowLeft className="h-4 w-4 mr-2" /> Back to Questions</Button>
-              <Button onClick={() => navigate(`/questions/${id}/edit`)}><Edit className="h-4 w-4 mr-2" /> Edit</Button>
-            </div>
+      <div className="min-h-screen bg-secondary/40"><ThemeToggle className="fixed top-4 right-4" /><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="py-8 md:py-10 lg:py-12">
+            <div className="flex justify-between items-center mb-4"><Button variant="ghost" onClick={() => navigate('/questions')}><ArrowLeft className="h-4 w-4 mr-2" /> Back to Questions</Button><Button onClick={() => navigate(`/questions/${id}/edit`)}><Edit className="h-4 w-4 mr-2" /> Edit</Button></div>
             {isLoading ? <Skeleton className="h-96 w-full" /> : question && (
               <motion.div className="space-y-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <Card>
-                  <CardHeader>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      <Badge>{question.ticketNumber}</Badge>
-                      <Badge variant="secondary">Asked by: {question.memberName}</Badge>
-                      <Badge variant="outline">{question.house}</Badge>
-                      <Badge className={cn(statusColors[question.status])}>{question.status}</Badge>
-                    </div>
-                    <CardTitle className="text-2xl md:text-3xl">{question.title}</CardTitle>
-                    <CardDescription>Division: {question.division}</CardDescription>
-                  </CardHeader>
-                  <CardContent><p className="whitespace-pre-wrap">{question.body}</p></CardContent>
-                </Card>
-                {question.answer && (
-                  <Card>
-                    <CardHeader><CardTitle>Answer</CardTitle></CardHeader>
-                    <CardContent><p className="whitespace-pre-wrap">{question.answer}</p></CardContent>
-                  </Card>
-                )}
+                <Card><CardHeader>
+                      <div className="flex flex-wrap gap-2 mb-2"><Badge>{question.ticketNumber}</Badge><Badge variant="secondary">Asked by: {question.memberName}</Badge><Badge variant="outline">{question.house}</Badge><Badge className={cn(statusColors[question.status])}>{question.status}</Badge></div>
+                      <div className="flex flex-wrap gap-1">{question.tags?.map(tag => <Badge key={tag} variant="secondary">#{tag}</Badge>)}</div>
+                      <CardTitle className="text-2xl md:text-3xl pt-2">{question.title}</CardTitle><CardDescription>Division: {question.division}</CardDescription>
+                    </CardHeader><CardContent><ReactMarkdown remarkPlugins={[remarkGfm]} className="prose dark:prose-invert max-w-none">{question.body}</ReactMarkdown></CardContent></Card>
+                {question.answer && (<Card><CardHeader><CardTitle>Answer</CardTitle></CardHeader><CardContent><ReactMarkdown remarkPlugins={[remarkGfm]} className="prose dark:prose-invert max-w-none">{question.answer}</ReactMarkdown></CardContent></Card>)}
                 <AttachmentList questionId={question.id} division={question.division} />
                 <CommentsSection questionId={question.id} />
               </motion.div>
             )}
-          </div>
-        </div>
-      </div>
+          </div></div></div>
     );
   }
   return (
-    <div className="min-h-screen bg-secondary/40">
-      <ThemeToggle className="fixed top-4 right-4" />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="py-8 md:py-10 lg:py-12">
-          <Button variant="ghost" onClick={() => navigate(id ? `/questions/${id}` : '/questions')} className="mb-4">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+    <div className="min-h-screen bg-secondary/40"><ThemeToggle className="fixed top-4 right-4" /><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="py-8 md:py-10 lg:py-12">
+          <Button variant="ghost" onClick={() => navigate(id ? `/questions/${id}` : '/questions')} className="mb-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                <Card>
-                  <CardHeader><CardTitle>{isNew ? 'Create New Question' : 'Edit Question'}</CardTitle></CardHeader>
-                  <CardContent className="space-y-6">
-                    {isLoading && !isNew ? (
-                      <div className="space-y-4">
-                        <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-1/2" /><Skeleton className="h-32 w-full" />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <FormField control={form.control} name="memberName" render={({ field }) => (<FormItem><FormLabel>Member Name</FormLabel><FormControl><Input placeholder="e.g., Dr. Rajesh Kumar" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          {!isNew && <FormField control={form.control} name="ticketNumber" render={({ field }) => (<FormItem><FormLabel>Ticket Number</FormLabel><FormControl><Input readOnly {...field} /></FormControl><FormMessage /></FormItem>)} />}
-                        </div>
-                        <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Enter question title..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                          <FormField control={form.control} name="house" render={({ field }) => (<FormItem><FormLabel>House</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a house" /></SelectTrigger></FormControl><SelectContent>{(['Lok Sabha', 'Rajya Sabha'] as House[]).map((house) => (<SelectItem key={house} value={house}>{house}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        </div>
-                        <FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="body" render={({ field }) => (<FormItem><FormLabel>Question Body</FormLabel><FormControl><Textarea placeholder="Detailed question text..." rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-                {!isNew && id && (
-                  <AttachmentList questionId={id} division={form.watch('division') || question?.division || ''} />
-                )}
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={mutation.isPending} className="bg-[#F38020] hover:bg-[#d86d11] text-white">
-                    {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                    {isNew ? 'Create Question' : 'Save Changes'}
-                  </Button>
-                </div>
-              </form>
-            </Form>
+            <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                <Card><CardHeader><CardTitle>{isNew ? 'Create New Question' : 'Edit Question'}</CardTitle></CardHeader><CardContent className="space-y-6">
+                      {isLoading && !isNew ? (<div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-1/2" /><Skeleton className="h-32 w-full" /></div>) : (<>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FormField control={form.control} name="memberName" render={({ field }) => (<FormItem><FormLabel>Member Name</FormLabel><FormControl><Input placeholder="e.g., Dr. Rajesh Kumar" {...field} /></FormControl><FormMessage /></FormItem>)} />{!isNew && <FormField control={form.control} name="ticketNumber" render={({ field }) => (<FormItem><FormLabel>Ticket Number</FormLabel><FormControl><Input readOnly {...field} /></FormControl><FormMessage /></FormItem>)} />}</div>
+                          <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Enter question title..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /><FormField control={form.control} name="house" render={({ field }) => (<FormItem><FormLabel>House</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a house" /></SelectTrigger></FormControl><SelectContent>{(['Lok Sabha', 'Rajya Sabha'] as House[]).map((house) => (<SelectItem key={house} value={house}>{house}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /></div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /><FormField control={form.control} name="tags" render={({ field }) => (<FormItem><FormLabel>Tags</FormLabel><FormControl><div><Input placeholder="Add tags like #vaccine, #rural..." value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown} /><div className="flex flex-wrap gap-1 mt-2"><AnimatePresence>{(field.value || []).map(tag => (<motion.div key={tag} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}><Badge variant="secondary" className="flex items-center gap-1">#{tag}<button type="button" onClick={() => removeTag(tag)} className="rounded-full hover:bg-muted-foreground/20"><X className="h-3 w-3" /></button></Badge></motion.div>))}</AnimatePresence></div></div></FormControl><FormMessage /></FormItem>)} /></div>
+                          <FormField control={form.control} name="body" render={({ field }) => (<FormItem><FormLabel>Question Body</FormLabel><FormControl><Textarea placeholder="Detailed question text..." rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        </>)}
+                    </CardContent></Card>
+                {!isNew && id && (<div className="space-y-4"><div className="flex items-center gap-2 p-2 bg-muted rounded-md"><p className="text-sm font-medium">Insert Attachment Link into:</p><Select value={insertTarget} onValueChange={(v) => setInsertTarget(v as any)}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="body">Question Body</SelectItem><SelectItem value="answer">Answer</SelectItem></SelectContent></Select><Paperclip className="h-4 w-4 text-muted-foreground" /></div><AttachmentList questionId={id} division={form.watch('division') || question?.division || ''} onAttachmentAdded={handleInsertAttachment} /></div>)}
+                <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending} className="bg-[#F38020] hover:bg-[#d86d11] text-white">{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} {isNew ? 'Create Question' : 'Save Changes'}</Button></div>
+              </form></Form>
           </motion.div>
-        </div>
-      </div>
-    </div>
+        </div></div></div>
   );
 }

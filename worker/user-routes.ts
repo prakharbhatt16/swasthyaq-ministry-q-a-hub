@@ -4,9 +4,10 @@ import { UserEntity, ChatBoardEntity, QuestionEntity, AttachmentEntity } from ".
 import { ok, bad, notFound, isStr } from './core-utils';
 import type { Question, QuestionStatus, Attachment, Comment, AuditLog, House } from "@shared/types";
 import { DIVISIONS, MOCK_AUDIT_LOGS } from "@shared/mock-data";
+import * as xlsx from 'xlsx';
 function generateCSV(questions: Question[]): string {
   if (questions.length === 0) return '';
-  const headers = ['id', 'ticketNumber', 'memberName', 'house', 'title', 'division', 'status', 'createdAt', 'updatedAt', 'body', 'answer'];
+  const headers = ['id', 'ticketNumber', 'memberName', 'house', 'title', 'division', 'status', 'tags', 'createdAt', 'updatedAt', 'body', 'answer'];
   const csvRows = [
     headers.join(','),
     ...questions.map(q => [
@@ -17,6 +18,7 @@ function generateCSV(questions: Question[]): string {
       `"${q.title.replace(/"/g, '""')}"`,
       q.division,
       q.status,
+      `"${(q.tags || []).join(', ')}"`,
       new Date(q.createdAt).toISOString(),
       new Date(q.updatedAt).toISOString(),
       `"${q.body.replace(/"/g, '""').replace(/\n/g, ' ')}"`,
@@ -25,18 +27,20 @@ function generateCSV(questions: Question[]): string {
   ];
   return csvRows.join('\n');
 }
+const normalizeTags = (tags: unknown): string[] => {
+  if (!Array.isArray(tags)) return [];
+  return tags
+    .map(t => String(t).toLowerCase().replace(/^#/, '').trim())
+    .filter(t => t.length > 0);
+};
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.get('/api/test', (c) => c.json({ success: true, data: { name: 'CF Workers Demo' }}));
   // SWASTHYAQ ROUTES
-  // GET Divisions
-  app.get('/api/divisions', (c) => {
-    return ok(c, DIVISIONS);
-  });
-  // GET Metrics
+  app.get('/api/divisions', (c) => ok(c, DIVISIONS));
   app.get('/api/metrics', async (c) => {
     await QuestionEntity.ensureSeed(c.env);
     await AttachmentEntity.ensureSeed(c.env);
-    const { house } = c.req.query();
+    const { house, includeTags } = c.req.query();
     let questions = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
     const attachments = await AttachmentEntity.list(c.env, null, 1000).then(p => p.items);
     if (isStr(house) && (house.toLowerCase() === 'lok sabha' || house.toLowerCase() === 'rajya sabha')) {
@@ -45,43 +49,59 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const byStatus: Record<QuestionStatus, number> = { Draft: 0, Submitted: 0, Admitted: 0, 'Non-Admitted': 0, Answered: 0, Closed: 0 };
     const byDivision: Record<string, number> = {};
     const byHouse: Record<string, number> = {};
+    const tagCounts: Record<string, number> = {};
     for (const q of questions) {
       byStatus[q.status] = (byStatus[q.status] || 0) + 1;
       byDivision[q.division] = (byDivision[q.division] || 0) + 1;
       byHouse[q.house] = (byHouse[q.house] || 0) + 1;
+      if (includeTags === 'true' && q.tags) {
+        for (const tag of q.tags) {
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+        }
+      }
     }
+    const topTags = includeTags === 'true' ? Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([tag, count]) => ({ tag, count })) : undefined;
     return ok(c, {
       byStatus: Object.entries(byStatus).map(([status, count]) => ({ status: status as QuestionStatus, count })),
       byDivision: Object.entries(byDivision).map(([division, count]) => ({ division, count })),
       byHouse: Object.entries(byHouse).map(([house, count]) => ({ house: house as House, count })),
       totalQuestions: questions.length,
       totalAttachments: attachments.length,
+      topTags,
     });
   });
-  // GET Recent Activity
   app.get('/api/recent-activity', async (c) => {
     await QuestionEntity.ensureSeed(c.env);
     const allQuestions = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
     allQuestions.sort((a, b) => b.updatedAt - a.updatedAt);
     const recent = allQuestions.slice(0, 10);
-    return ok(c, recent.map(q => ({ id: q.id, title: q.title, status: q.status, updatedAt: q.updatedAt, ticketNumber: q.ticketNumber })));
+    return ok(c, recent.map(q => ({ id: q.id, title: q.title, status: q.status, updatedAt: q.updatedAt, ticketNumber: q.ticketNumber, tags: q.tags })));
+  });
+  app.get('/api/tags', async (c) => {
+    await QuestionEntity.ensureSeed(c.env);
+    const questions = await QuestionEntity.list(c.env, null, 10000).then(p => p.items);
+    const allTags = questions.flatMap(q => q.tags || []);
+    const uniqueTags = [...new Set(allTags)].sort();
+    return ok(c, { tags: uniqueTags });
   });
   // Questions CRUD
   app.get('/api/questions', async (c) => {
     await QuestionEntity.ensureSeed(c.env);
-    const { cursor, limit, division, status, search, house } = c.req.query();
+    const { cursor, limit, division, status, search, house, tag } = c.req.query();
     const page = await QuestionEntity.list(c.env, cursor ?? null, limit ? Math.max(1, (Number(limit) | 0)) : 20);
     let items = page.items;
     if (isStr(division)) items = items.filter(q => q.division === division);
     if (isStr(status)) items = items.filter(q => q.status === status);
     if (isStr(house)) items = items.filter(q => q.house.toLowerCase() === house.toLowerCase());
+    if (isStr(tag)) items = items.filter(q => q.tags?.includes(tag.toLowerCase()));
     if (isStr(search)) {
       const searchTerm = search.toLowerCase();
       items = items.filter(q =>
         q.title.toLowerCase().includes(searchTerm) ||
         q.body.toLowerCase().includes(searchTerm) ||
         q.ticketNumber.toLowerCase().includes(searchTerm) ||
-        q.memberName.toLowerCase().includes(searchTerm)
+        q.memberName.toLowerCase().includes(searchTerm) ||
+        q.tags?.some(t => t.includes(searchTerm))
       );
     }
     return ok(c, { ...page, items });
@@ -92,6 +112,18 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const csv = generateCSV(questions);
     return c.text(csv, 200, { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="questions-${Date.now()}.csv"` });
   });
+  app.post('/api/questions/export-excel', async (c) => {
+    await QuestionEntity.ensureSeed(c.env);
+    const questions = await QuestionEntity.list(c.env, null, 10000).then(p => p.items);
+    const attachments = await AttachmentEntity.list(c.env, null, 10000).then(p => p.items);
+    const qSheet = xlsx.utils.json_to_sheet(questions.map(q => ({ ...q, tags: (q.tags || []).join(', '), inlineAttachments: JSON.stringify(q.inlineAttachments || []) })));
+    const aSheet = xlsx.utils.json_to_sheet(attachments);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, qSheet, 'Questions');
+    xlsx.utils.book_append_sheet(wb, aSheet, 'Attachments');
+    const buf = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
+    return new Response(buf, { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="questions-${Date.now()}.xlsx"` } });
+  });
   app.get('/api/questions/:id', async (c) => {
     const { id } = c.req.param();
     const question = new QuestionEntity(c.env, id);
@@ -99,26 +131,14 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     return ok(c, await question.getState());
   });
   app.post('/api/questions', async (c) => {
-    const { title, body, division, memberName, house } = await c.req.json<Partial<Question>>();
+    const { title, body, division, memberName, house, tags } = await c.req.json<Partial<Question>>();
     if (!isStr(title) || !isStr(body) || !isStr(division) || !isStr(memberName) || !isStr(house)) return bad(c, 'title, body, division, memberName, and house are required');
     const allQuestions = await QuestionEntity.list(c.env, null, 10000);
     const nextId = allQuestions.items.length + 1;
     const ticketNumber = `Q-${String(nextId).padStart(3, '0')}`;
     const now = Date.now();
     const newQuestion: Question = {
-      id: crypto.randomUUID(),
-      ticketNumber,
-      memberName,
-      title,
-      body,
-      division,
-      house,
-      status: 'Draft',
-      attachmentIds: [],
-      createdAt: now,
-      createdBy: 'u1', // Mock user
-      updatedAt: now,
-      comments: [],
+      id: crypto.randomUUID(), ticketNumber, memberName, title, body, division, house, status: 'Draft', attachmentIds: [], createdAt: now, createdBy: 'u1', updatedAt: now, comments: [], tags: normalizeTags(tags), inlineAttachments: [],
     };
     await QuestionEntity.create(c.env, newQuestion);
     return ok(c, newQuestion);
@@ -129,26 +149,17 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const question = new QuestionEntity(c.env, id);
     if (!await question.exists()) return notFound(c, 'Question not found');
     const current = await question.getState();
-    // Reject only if client attempts to change immutable fields to a different value
-    if (rawPatch.ticketNumber && rawPatch.ticketNumber !== current.ticketNumber) {
-      return bad(c, 'Ticket number cannot be changed');
-    }
-    if (rawPatch.house && rawPatch.house !== current.house) {
-      return bad(c, 'House cannot be changed');
-    }
-    // Build sanitized patch by removing immutable fields if present
-    const { ticketNumber, house, ...rest } = rawPatch as Partial<Question>;
-    const sanitized = rest;
+    if (rawPatch.ticketNumber && rawPatch.ticketNumber !== current.ticketNumber) return bad(c, 'Ticket number cannot be changed');
+    if (rawPatch.house && rawPatch.house !== current.house) return bad(c, 'House cannot be changed');
+    const { ticketNumber, house, tags, ...rest } = rawPatch as Partial<Question>;
+    const sanitized = { ...rest, tags: normalizeTags(tags) };
     await question.mutate(q => ({ ...q, ...sanitized, id: q.id, updatedAt: Date.now() }));
     return ok(c, await question.getState());
   });
   app.post('/api/questions/bulk-status', async (c) => {
     const { ids, status } = await c.req.json<{ ids: string[], status: QuestionStatus }>();
     if (!Array.isArray(ids) || !isStr(status)) return bad(c, 'ids (array) and status (string) are required');
-    const updates = ids.map(id => {
-      const question = new QuestionEntity(c.env, id);
-      return question.patch({ status, updatedAt: Date.now() });
-    });
+    const updates = ids.map(id => new QuestionEntity(c.env, id).patch({ status, updatedAt: Date.now() }));
     await Promise.all(updates);
     return ok(c, { updated: ids.length });
   });
@@ -171,16 +182,8 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (!isStr(text)) return bad(c, 'text is required');
     const question = new QuestionEntity(c.env, id);
     if (!await question.exists()) return notFound(c, 'Question not found');
-    const newComment: Comment = {
-      id: crypto.randomUUID(),
-      text,
-      author: 'Admin User', // Mock user
-      createdAt: Date.now(),
-    };
-    await question.mutate(q => ({
-      ...q,
-      comments: [...(q.comments || []), newComment],
-    }));
+    const newComment: Comment = { id: crypto.randomUUID(), text, author: 'Admin User', createdAt: Date.now() };
+    await question.mutate(q => ({ ...q, comments: [...(q.comments || []), newComment] }));
     return ok(c, newComment);
   });
   // Attachments CRUD
@@ -196,25 +199,12 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   });
   app.post('/api/attachments', async (c) => {
     const { questionId, label, folderPath, division } = await c.req.json<Partial<Attachment>>();
-    if (!isStr(questionId) || !isStr(label) || !isStr(folderPath) || !isStr(division)) {
-      return bad(c, 'questionId, label, folderPath, and division are required');
-    }
-    const newAttachment = {
-      id: crypto.randomUUID(),
-      questionId,
-      label,
-      folderPath,
-      division,
-      createdAt: Date.now(),
-    };
+    if (!isStr(questionId) || !isStr(label) || !isStr(folderPath) || !isStr(division)) return bad(c, 'questionId, label, folderPath, and division are required');
+    const newAttachment = { id: crypto.randomUUID(), questionId, label, folderPath, division, createdAt: Date.now() };
     await AttachmentEntity.create(c.env, newAttachment);
-    // Also update the question
     const question = new QuestionEntity(c.env, questionId);
     if (await question.exists()) {
-      await question.mutate(q => ({
-        ...q,
-        attachmentIds: [...q.attachmentIds, newAttachment.id],
-      }));
+      await question.mutate(q => ({ ...q, attachmentIds: [...q.attachmentIds, newAttachment.id] }));
     }
     return ok(c, newAttachment);
   });
@@ -224,8 +214,5 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await AttachmentEntity.ensureSeed(c.env);
     return ok(c, { seeded: true });
   });
-  app.get('/api/audit-logs', async (c) => {
-    // In a real app, this would query a durable entity. Here, we return mock data.
-    return ok(c, MOCK_AUDIT_LOGS.sort((a, b) => b.timestamp - a.timestamp));
-  });
+  app.get('/api/audit-logs', async (c) => ok(c, MOCK_AUDIT_LOGS.sort((a, b) => b.timestamp - a.timestamp)));
 }

@@ -43,6 +43,8 @@ export interface Question {
   memberName: string;
   ticketNumber: string;
   house: House;
+  tags?: string[];
+  inlineAttachments?: { type: 'body' | 'answer'; attachmentId: string }[];
 }
 export interface Attachment {
   id: string;
@@ -58,6 +60,7 @@ export interface Metrics {
   byHouse?: { house: House; count: number }[];
   totalQuestions: number;
   totalAttachments: number;
+  topTags?: { tag: string; count: number }[];
 }
 export interface RecentActivity {
   id: string;
@@ -65,6 +68,7 @@ export interface RecentActivity {
   status: QuestionStatus;
   updatedAt: number;
   ticketNumber: string;
+  tags?: string[];
 }
 export type ExportCSVResponse = string;
 export interface AuditLog {
