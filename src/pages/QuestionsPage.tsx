@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { PlusCircle, Search, LayoutGrid, List, FileQuestion, Download, ChevronDown, Loader2, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, House } from '@shared/types';
