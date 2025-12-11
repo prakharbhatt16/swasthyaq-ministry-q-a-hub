@@ -125,12 +125,21 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   });
   app.patch('/api/questions/:id', async (c) => {
     const { id } = c.req.param();
-    const patch = await c.req.json<Partial<Question>>();
-    if (patch.ticketNumber) return bad(c, 'Ticket number cannot be changed');
-    if (patch.house) return bad(c, 'House cannot be changed');
+    const rawPatch = await c.req.json<Partial<Question>>();
     const question = new QuestionEntity(c.env, id);
     if (!await question.exists()) return notFound(c, 'Question not found');
-    await question.mutate(q => ({ ...q, ...patch, id: q.id, updatedAt: Date.now() }));
+    const current = await question.getState();
+    // Reject only if client attempts to change immutable fields to a different value
+    if (rawPatch.ticketNumber && rawPatch.ticketNumber !== current.ticketNumber) {
+      return bad(c, 'Ticket number cannot be changed');
+    }
+    if (rawPatch.house && rawPatch.house !== current.house) {
+      return bad(c, 'House cannot be changed');
+    }
+    // Build sanitized patch by removing immutable fields if present
+    const { ticketNumber, house, ...rest } = rawPatch as Partial<Question>;
+    const sanitized = rest;
+    await question.mutate(q => ({ ...q, ...sanitized, id: q.id, updatedAt: Date.now() }));
     return ok(c, await question.getState());
   });
   app.post('/api/questions/bulk-status', async (c) => {
