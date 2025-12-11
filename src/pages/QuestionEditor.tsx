@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Paperclip } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, Comment, House } from '@shared/types';
@@ -118,8 +118,8 @@ export default function QuestionEditor() {
                       <div className="flex flex-wrap gap-2 mb-2"><Badge>{question.ticketNumber}</Badge><Badge variant="secondary">Asked by: {question.memberName}</Badge><Badge variant="outline">{question.house}</Badge><Badge className={cn(statusColors[question.status])}>{question.status}</Badge></div>
                       <div className="flex flex-wrap gap-1">{question.tags?.map(tag => <Badge key={tag} variant="secondary">#{tag}</Badge>)}</div>
                       <CardTitle className="text-2xl md:text-3xl pt-2">{question.title}</CardTitle><CardDescription>Division: {question.division}</CardDescription>
-                    </CardHeader><CardContent><ReactMarkdown remarkPlugins={[remarkGfm]} className="prose dark:prose-invert max-w-none">{question.body}</ReactMarkdown></CardContent></Card>
-                {question.answer && (<Card><CardHeader><CardTitle>Answer</CardTitle></CardHeader><CardContent><ReactMarkdown remarkPlugins={[remarkGfm]} className="prose dark:prose-invert max-w-none">{question.answer}</ReactMarkdown></CardContent></Card>)}
+                    </CardHeader><CardContent><div className="prose dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{question.body}</ReactMarkdown></div></CardContent></Card>
+                {question.answer && (<Card><CardHeader><CardTitle>Answer</CardTitle></CardHeader><CardContent><div className="prose dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{question.answer}</ReactMarkdown></div></CardContent></Card>)}
                 <AttachmentList questionId={question.id} division={question.division} />
                 <CommentsSection questionId={question.id} />
               </motion.div>
@@ -142,7 +142,7 @@ export default function QuestionEditor() {
                           <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </>)}
                     </CardContent></Card>
-                {!isNew && id && (<div className="space-y-4"><div className="flex items-center gap-2 p-2 bg-muted rounded-md"><p className="text-sm font-medium">Insert Attachment Link into:</p><Select value={insertTarget} onValueChange={(v) => setInsertTarget(v as any)}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="body">Question Body</SelectItem><SelectItem value="answer">Answer</SelectItem></SelectContent></Select><Paperclip className="h-4 w-4 text-muted-foreground" /></div><AttachmentList questionId={id} division={form.watch('division') || question?.division || ''} onAttachmentAdded={handleInsertAttachment} /></div>)}
+                {!isNew && id && (<div className="space-y-4"><div className="flex items-center gap-2 p-2 bg-muted rounded-md"><p className="text-sm font-medium">Insert Attachment Link into:</p><Select value={insertTarget} onValueChange={(v) => setInsertTarget(v as 'body' | 'answer')}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="body">Question Body</SelectItem><SelectItem value="answer">Answer</SelectItem></SelectContent></Select><Paperclip className="h-4 w-4 text-muted-foreground" /></div><AttachmentList questionId={id} division={form.watch('division') || question?.division || ''} onAttachmentAdded={handleInsertAttachment} /></div>)}
                 <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending} className="bg-[#F38020] hover:bg-[#d86d11] text-white">{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} {isNew ? 'Create Question' : 'Save Changes'}</Button></div>
               </form></Form>
           </motion.div>
