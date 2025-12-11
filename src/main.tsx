@@ -17,6 +17,7 @@ import QuestionEditor from '@/pages/QuestionEditor';
 import AttachmentsPage from '@/pages/AttachmentsPage';
 import AdminPage from '@/pages/AdminPage';
 import { Toaster } from '@/components/ui/sonner';
+import { ThemeProvider } from "@/components/ui/theme-provider";
 const queryClient = new QueryClient();
 const router = createBrowserRouter([
   {
@@ -55,10 +56,12 @@ const router = createBrowserRouter([
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
-        <RouterProvider router={router} fallbackElement={<div>Loading...</div>} />
-        <Toaster richColors closeButton />
-      </ErrorBoundary>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ErrorBoundary>
+          <RouterProvider router={router} fallbackElement={<div>Loading...</div>} />
+          <Toaster richColors closeButton />
+        </ErrorBoundary>
+      </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

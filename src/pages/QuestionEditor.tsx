@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, Comment, House } from '@shared/types';
@@ -28,7 +28,7 @@ const questionSchema = z.object({
   answer: z.string().optional(),
   memberName: z.string().min(1, 'Member name is required'),
   ticketNumber: z.string().optional(),
-  house: z.enum(['Lok Sabha', 'Rajya Sabha'], { required_error: 'House is required' }),
+  house: z.enum(['Lok Sabha', 'Rajya Sabha']),
 });
 type QuestionFormData = z.infer<typeof questionSchema>;
 function CommentsSection({ questionId }: { questionId: string }) {
@@ -186,7 +186,7 @@ export default function QuestionEditor() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                 <Card>

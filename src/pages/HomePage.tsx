@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { ArrowRight, BarChart2, FilePlus } from 'lucide-react';
 import QuestionsPage from './QuestionsPage';
 export function HomePage() {
@@ -47,12 +47,12 @@ export function HomePage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
                 >
-                  <Button asChild size="lg" className="bg-[#F38020] hover:bg-[#d86d11] text-white shadow-lg hover:-translate-y-0.5 transition-transform">
+                  <Button asChild size="lg" className="bg-[#F38020] hover:bg-[#d86d11] text-white shadow-lg hover:-translate-y-0.5 transition-transform hover:scale-105">
                     <Link to="/questions/new">
                       Create a Question <FilePlus className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>
-                  <Button asChild size="lg" variant="outline" className="text-white border-white/50 hover:bg-white/10 hover:text-white">
+                  <Button asChild size="lg" variant="outline" className="text-white border-white/50 hover:bg-white/10 hover:text-white transition-transform hover:scale-105">
                     <Link to="/dashboard">
                       View Dashboard <BarChart2 className="ml-2 h-5 w-5" />
                     </Link>
@@ -64,7 +64,11 @@ export function HomePage() {
         </div>
         {/* Recent Questions Section */}
         <div className="bg-secondary/40">
-          <QuestionsPage isHomePage />
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="py-8 md:py-10 lg:py-12">
+              <QuestionsPage isHomePage />
+            </div>
+          </div>
         </div>
       </main>
       <footer className="bg-gray-900 text-center py-6">
