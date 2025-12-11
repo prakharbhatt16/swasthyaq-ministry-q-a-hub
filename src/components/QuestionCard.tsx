@@ -17,7 +17,9 @@ interface QuestionCardProps {
 }
 const statusColors: { [key in QuestionStatus]: string } = {
   Draft: 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600',
-  Submitted: 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/80',
+  Submitted: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:hover:bg-yellow-900/80',
+  Admitted: 'bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:hover:bg-blue-900/80',
+  'Non-Admitted': 'bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/50 dark:text-orange-300 dark:hover:bg-orange-900/80',
   Answered: 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/80',
   Closed: 'bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-900/80',
 };
@@ -41,7 +43,7 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
                 <p className="text-xs text-muted-foreground">by {question.memberName}</p>
               </div>
               <Badge variant="secondary" className="hidden sm:inline-flex">{question.division}</Badge>
-              <Badge variant="outline" className="hidden sm:inline-flex">{question.house}</Badge>
+              <Badge variant="outline" className="hidden sm:inline-flex">{question?.house ?? 'Unknown'}</Badge>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger>
@@ -75,7 +77,7 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
           <div className="flex justify-between items-start gap-2 mb-2">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{question.division}</Badge>
-              <Badge variant="outline">{question.house}</Badge>
+              <Badge variant="outline">{question?.house ?? 'Unknown'}</Badge>
             </div>
             <TooltipProvider>
               <Tooltip>
