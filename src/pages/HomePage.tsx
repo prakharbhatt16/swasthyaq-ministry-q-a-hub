@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ArrowRight, BarChart2, FilePlus } from 'lucide-react';
-import QuestionsPage from './QuestionsPage';
+import RecentQuestions from '@/components/RecentQuestions';
 export function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -66,7 +66,7 @@ export function HomePage() {
         <div className="bg-secondary/40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="py-8 md:py-10 lg:py-12">
-              <QuestionsPage isHomePage />
+              <RecentQuestions limit={6} />
             </div>
           </div>
         </div>
