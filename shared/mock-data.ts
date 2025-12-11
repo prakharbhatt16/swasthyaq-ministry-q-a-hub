@@ -31,6 +31,7 @@ export const MOCK_QUESTIONS: Question[] = [
     updatedAt: now - 86400000 * 2,
     answer: 'The logistics for vaccine distribution in rural areas have been significantly improved over the last quarter. We have established 50 new cold chain points and partnered with local logistics providers, resulting in a 35% increase in delivery efficiency. The attached report provides a detailed breakdown of the new measures and their impact.',
     comments: MOCK_COMMENTS,
+    house: 'Lok Sabha',
   },
   {
     id: 'q2',
@@ -45,6 +46,7 @@ export const MOCK_QUESTIONS: Question[] = [
     createdBy: 'u2',
     updatedAt: now - 86400000 * 2,
     comments: [],
+    house: 'Rajya Sabha',
   },
   {
     id: 'q3',
@@ -59,6 +61,7 @@ export const MOCK_QUESTIONS: Question[] = [
     createdBy: 'u1',
     updatedAt: now - 3600000,
     comments: [],
+    house: 'Lok Sabha',
   },
 ];
 export const MOCK_ATTACHMENTS: Attachment[] = [

@@ -21,6 +21,7 @@ export interface ChatMessage {
 }
 // SwasthyaQ Types
 export type QuestionStatus = 'Draft' | 'Submitted' | 'Answered' | 'Closed';
+export type House = 'Lok Sabha' | 'Rajya Sabha';
 export interface Comment {
   id: string;
   text: string;
@@ -41,6 +42,7 @@ export interface Question {
   comments?: Comment[];
   memberName: string;
   ticketNumber: string;
+  house: House;
 }
 export interface Attachment {
   id: string;
@@ -53,6 +55,7 @@ export interface Attachment {
 export interface Metrics {
   byStatus: { status: QuestionStatus; count: number }[];
   byDivision: { division: string; count: number }[];
+  byHouse?: { house: House; count: number }[];
   totalQuestions: number;
   totalAttachments: number;
 }

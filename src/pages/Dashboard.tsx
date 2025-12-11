@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -5,10 +6,11 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FileText, PlusCircle, Paperclip, Activity, CheckCircle, Clock, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import type { Metrics, RecentActivity } from '@shared/types';
+import type { Metrics, RecentActivity, House } from '@shared/types';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 const COLORS = ['#667EEA', '#F38020', '#374151', '#4CAF50', '#FFC107'];
@@ -27,9 +29,14 @@ const StatCard = ({ title, value, icon: Icon }: { title: string; value: number |
 );
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [houseFilter, setHouseFilter] = useState('All');
   const { data: metrics, isLoading: isLoadingMetrics, error: metricsError } = useQuery<Metrics>({
-    queryKey: ['metrics'],
-    queryFn: () => api('/api/metrics'),
+    queryKey: ['metrics', houseFilter],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (houseFilter !== 'All') params.append('house', houseFilter);
+      return api(`/api/metrics?${params.toString()}`);
+    },
   });
   const { data: recentActivity, isLoading: isLoadingActivity, error: activityError } = useQuery<RecentActivity[]>({
     queryKey: ['recent-activity'],
@@ -55,7 +62,17 @@ export default function Dashboard() {
               <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
               <p className="text-muted-foreground mt-1">Overview of Q&A activity.</p>
             </div>
-            <Button asChild className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to="/questions/new"><PlusCircle className="h-4 w-4 mr-2" /> Create Question</Link></Button>
+            <div className="flex gap-4 items-center">
+              <Select value={houseFilter} onValueChange={setHouseFilter}>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Filter by house" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All Houses</SelectItem>
+                  <SelectItem value="Lok Sabha">Lok Sabha</SelectItem>
+                  <SelectItem value="Rajya Sabha">Rajya Sabha</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button asChild className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to="/questions/new"><PlusCircle className="h-4 w-4 mr-2" /> Create Question</Link></Button>
+            </div>
           </header>
           <main className="space-y-8">
             <motion.div

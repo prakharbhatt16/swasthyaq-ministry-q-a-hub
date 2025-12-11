@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDebounce } from 'react-use';
@@ -10,12 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { PlusCircle, Search, LayoutGrid, List, FileQuestion, Download, ChevronDown, Loader2, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import type { Question, QuestionStatus } from '@shared/types';
+import type { Question, QuestionStatus, House } from '@shared/types';
 import { QuestionCard } from '@/components/QuestionCard';
 import { DIVISIONS } from '@shared/mock-data';
+import { useQuestionsQuery } from '@/hooks/useQuestionsQuery';
 const PAGE_SIZE = 9;
 interface QuestionsPageProps {
   isHomePage?: boolean;
@@ -27,35 +28,29 @@ export default function QuestionsPage({ isHomePage = false }: QuestionsPageProps
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [divisionFilter, setDivisionFilter] = useState('All');
+  const [houseFilter, setHouseFilter] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [cursors, setCursors] = useState<Array<string | null>>([]);
+  const [cursors, setCursors] = useState<Array<string | null>>([null]);
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   useDebounce(() => setDebouncedSearchTerm(searchTerm), 500, [searchTerm]);
-  const queryKey = useMemo(() => ['questions', statusFilter, divisionFilter, debouncedSearchTerm, currentPage], [statusFilter, divisionFilter, debouncedSearchTerm, currentPage]);
-  const { data, isLoading, error } = useQuery<{ items: Question[]; next: string | null }>({
-    queryKey,
-    queryFn: () => {
-      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
-      if (statusFilter !== 'All') params.append('status', statusFilter);
-      if (divisionFilter !== 'All') params.append('division', divisionFilter);
-      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
-      const cursor = currentPage > 0 ? cursors[currentPage - 1] : null;
-      if (cursor) {
-        params.append('cursor', cursor);
-      }
-      return api(`/api/questions?${params.toString()}`);
-    },
+  const { data, isLoading, error } = useQuestionsQuery({
+    statusFilter,
+    divisionFilter,
+    houseFilter,
+    searchTerm: debouncedSearchTerm,
+    cursor: cursors[currentPage],
+    limit: isHomePage ? 6 : PAGE_SIZE,
   });
   useEffect(() => {
-    if (data?.next && cursors.length === currentPage) {
+    if (data?.next && cursors.length === currentPage + 1) {
       setCursors(prev => [...prev, data.next]);
     }
   }, [data?.next, currentPage, cursors]);
   useEffect(() => {
     setCurrentPage(0);
-    setCursors([]);
-  }, [statusFilter, divisionFilter, debouncedSearchTerm]);
+    setCursors([null]);
+  }, [statusFilter, divisionFilter, houseFilter, debouncedSearchTerm]);
   const allOnPageSelected = useMemo(() => {
     const items = data?.items ?? [];
     if (items.length === 0) return false;
@@ -157,54 +152,61 @@ export default function QuestionsPage({ isHomePage = false }: QuestionsPageProps
             </div>
             <Button asChild className="bg-[#F38020] hover:bg-[#d86d11] text-white"><Link to="/questions/new"><PlusCircle className="h-4 w-4 mr-2" /> Create Question</Link></Button>
           </header>
-          <div className="mb-6 p-4 bg-card rounded-lg shadow-sm space-y-4">
-            <div className="flex flex-col md:flex-row gap-4 items-center">
-              <div className="relative w-full md:flex-grow">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search by title, ticket #, or member..." className="pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          {!isHomePage && (
+            <div className="mb-6 p-4 bg-card rounded-lg shadow-sm space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+                <div className="relative w-full lg:col-span-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Search by title, ticket #, or member..." className="pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                </div>
+                <div className="flex gap-2 w-full">
+                  <Select value={houseFilter} onValueChange={setHouseFilter}><SelectTrigger><SelectValue placeholder="Filter by house" /></SelectTrigger><SelectContent><SelectItem value="All">All Houses</SelectItem><SelectItem value="Lok Sabha">Lok Sabha</SelectItem><SelectItem value="Rajya Sabha">Rajya Sabha</SelectItem></SelectContent></Select>
+                </div>
+                <div className="flex gap-2 w-full">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue placeholder="Filter by status" /></SelectTrigger><SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Submitted">Submitted</SelectItem><SelectItem value="Answered">Answered</SelectItem><SelectItem value="Closed">Closed</SelectItem></SelectContent></Select>
+                  <Select value={divisionFilter} onValueChange={setDivisionFilter}><SelectTrigger><SelectValue placeholder="Filter by division" /></SelectTrigger><SelectContent><SelectItem value="All">All Divisions</SelectItem>{DIVISIONS.map(div => <SelectItem key={div} value={div}>{div}</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="flex items-center gap-2 justify-end">
+                  <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}><LayoutGrid className="h-4 w-4" /></Button>
+                  <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}><List className="h-4 w-4" /></Button>
+                </div>
               </div>
-              <div className="flex gap-2 w-full md:w-auto">
-                <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Filter by status" /></SelectTrigger><SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Submitted">Submitted</SelectItem><SelectItem value="Answered">Answered</SelectItem><SelectItem value="Closed">Closed</SelectItem></SelectContent></Select>
-                <Select value={divisionFilter} onValueChange={setDivisionFilter}><SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Filter by division" /></SelectTrigger><SelectContent><SelectItem value="All">All Divisions</SelectItem>{DIVISIONS.map(div => <SelectItem key={div} value={div}>{div}</SelectItem>)}</SelectContent></Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}><LayoutGrid className="h-4 w-4" /></Button>
-                <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}><List className="h-4 w-4" /></Button>
-              </div>
+              <AnimatePresence>
+                {selectedIds.size > 0 && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-primary/5 dark:bg-primary/10 p-3 rounded-md flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Checkbox checked={allOnPageSelected} onCheckedChange={toggleSelectAll} id="selectAll" />
+                      <label htmlFor="selectAll" className="text-sm font-medium">{selectedIds.size} selected</label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions <ChevronDown className="h-4 w-4 ml-2" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          {(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map(status => (
+                            <DropdownMenuItem key={status} onSelect={() => bulkUpdateMutation.mutate({ ids: Array.from(selectedIds), status })}>Set status to {status}</DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button size="sm" variant="outline" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
+                        {exportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                        Export
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <AnimatePresence>
-              {selectedIds.size > 0 && (
-                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-primary/5 dark:bg-primary/10 p-3 rounded-md flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={allOnPageSelected} onCheckedChange={toggleSelectAll} id="selectAll" />
-                    <label htmlFor="selectAll" className="text-sm font-medium">{selectedIds.size} selected</label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions <ChevronDown className="h-4 w-4 ml-2" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {(['Draft', 'Submitted', 'Answered', 'Closed'] as QuestionStatus[]).map(status => (
-                          <DropdownMenuItem key={status} onSelect={() => bulkUpdateMutation.mutate({ ids: Array.from(selectedIds), status })}>Set status to {status}</DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button size="sm" variant="outline" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
-                      {exportMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
-                      Export
-                    </Button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          )}
           <main>
             {renderContent()}
           </main>
-          <footer className="mt-8 flex justify-center items-center gap-4">
-            <Button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 0 || isLoading}>Previous</Button>
-            <span className="text-sm text-muted-foreground">Page {currentPage + 1}</span>
-            <Button onClick={() => setCurrentPage(p => p + 1)} disabled={!data?.next || isLoading}>Next</Button>
-          </footer>
+          {!isHomePage && (
+            <footer className="mt-8 flex justify-center items-center gap-4">
+              <Button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0 || isLoading}>Previous</Button>
+              <span className="text-sm text-muted-foreground">Page {currentPage + 1}</span>
+              <Button onClick={() => setCurrentPage(p => p + 1)} disabled={!data?.next || isLoading}>Next</Button>
+            </footer>
+          )}
         </div>
       </div>
     </Wrapper>
