@@ -1,5 +1,5 @@
 # Parliament Question Studio
-[![[cloudflarebutton]]](https://deploy.workers.cloudflare.com/?url=${repositoryUrl})
+[![[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/prakharbhatt16/swasthyaq-ministry-q-a-hub)]](https://deploy.workers.cloudflare.com/?url=${repositoryUrl})
 Parliament Question Studio is a visually polished, local-deployable Q&A management web application designed for parliamentary sessions. It enables users to create, categorize, and manage questions by house (Lok Sabha/Rajya Sabha) and division, attach hyperlinks to external folders (e.g., shared drives), update question statuses, and visualize metrics through interactive dashboards. Built on Cloudflare Workers with Durable Objects for persistent storage, the app provides a responsive, modern interface inspired by Azure DevOps workflows, complete with CRUD operations, real-time-like updates, and professional-grade UI polish.
 ## Features
 - **Question Management**: Create, edit, view, and delete questions with rich text support, categorized by ministry divisions (e.g., AYUSH, Family Welfare).
@@ -119,7 +119,7 @@ Deploy to Cloudflare Workers for global, edge-hosted performance with zero-confi
 - Your app will be live at `<project-name>.workers.dev` (e.g., swasthyaq-efput2jihksj3b2p9wzew.workers.dev).
 - Durable Objects handle persistence across deploys.
 - Custom domain: Use Wrangler or Cloudflare Dashboard.
-[![[cloudflarebutton]]](https://deploy.workers.cloudflare.com/?url=${repositoryUrl})
+[![[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/prakharbhatt16/swasthyaq-ministry-q-a-hub)]](https://deploy.workers.cloudflare.com/?url=${repositoryUrl})
 For production:
 - Set environment variables in `wrangler.jsonc` (e.g., for real auth).
 - Monitor via Cloudflare Dashboard (logs, metrics).
