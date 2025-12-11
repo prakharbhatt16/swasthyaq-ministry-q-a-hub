@@ -47,12 +47,12 @@ export function HomePage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
                 >
-                  <Button asChild size="lg" className="bg-[#F38020] hover:bg-[#d86d11] text-white shadow-lg hover:-translate-y-0.5 transition-transform hover:scale-105">
+                  <Button asChild size="lg" className="bg-[#F38020] hover:bg-[#d86d11] text-white shadow-lg hover:-translate-y-0.5 transition-transform hover:scale-105 opacity-100 focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:outline-none">
                     <Link to="/questions/new">
                       Create a Question <FilePlus className="ml-2 h-5 w-5" />
                     </Link>
                   </Button>
-                  <Button asChild size="lg" variant="outline" className="text-white border-white/50 hover:bg-white/10 hover:text-white transition-transform hover:scale-105">
+                  <Button asChild size="lg" variant="outline" className="text-white/90 border-white/80 hover:bg-white/20 hover:text-white transition-all duration-300 hover:scale-105 opacity-100 focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:outline-none">
                     <Link to="/dashboard">
                       View Dashboard <BarChart2 className="ml-2 h-5 w-5" />
                     </Link>
