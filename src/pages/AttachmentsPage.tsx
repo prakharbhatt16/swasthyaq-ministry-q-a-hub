@@ -6,26 +6,61 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Folder, Link as LinkIcon, Paperclip, ArrowLeft, Download, FileIcon } from 'lucide-react';
+import { Folder, Paperclip, ArrowLeft, Download, FileIcon, ImageIcon, FileTextIcon, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Attachment } from '@shared/types';
 import { DIVISIONS } from '@shared/mock-data';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 const formatSize = (bytes: number) => {
   if (!bytes) return '';
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return `${(bytes / 1024 ** i).toFixed(1)} ${sizes[i]}`;
 };
-
 export default function AttachmentsPage() {
   const navigate = useNavigate();
   const [divisionFilter, setDivisionFilter] = useState('All');
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const { data: attachments, isLoading, error } = useQuery<Attachment[]>({
     queryKey: ['attachments'],
     queryFn: () => api('/api/attachments'),
   });
+  const handleDownload = async (att: Attachment) => {
+    if (!att.downloadUrl) return;
+    if (att.folderPath) {
+      window.open(att.folderPath, '_blank');
+      return;
+    }
+    setDownloadingId(att.id);
+    try {
+      const response = await fetch(att.downloadUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.filename || att.label || 'download';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      if (response.headers.get('X-Mock-Download') === 'true') {
+        toast.info('Downloaded mock file (R2 storage not active)');
+      }
+    } catch (error: any) {
+      toast.error(`Download failed: ${error.message}`);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+  const getFileIcon = (mimeType?: string) => {
+    if (!mimeType) return <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />;
+    if (mimeType.startsWith('image/')) return <ImageIcon className="h-4 w-4 text-pink-500 shrink-0" />;
+    if (mimeType.includes('pdf')) return <FileTextIcon className="h-4 w-4 text-red-500 shrink-0" />;
+    return <FileIcon className="h-4 w-4 text-blue-500 shrink-0" />;
+  };
   const groupedAndFilteredAttachments = useMemo(() => {
     if (!attachments) return {};
     const filtered = divisionFilter === 'All' ? attachments : attachments.filter(a => a.division === divisionFilter);
@@ -75,14 +110,22 @@ export default function AttachmentsPage() {
                       <AccordionContent className="px-6 pb-4">
                         <div className="space-y-2">
                           {atts.map(att => (
-                            <Card key={att.id} className="hover:bg-accent transition-colors">
+                            <Card key={att.id} className="hover:bg-accent transition-colors group">
                               <CardContent className="p-3 flex justify-between items-center">
-                                <a href={att.downloadUrl || att.folderPath || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm font-medium text-primary hover:underline">
-                                  {att.r2Key ? <FileIcon className="h-4 w-4 text-blue-500 shrink-0" /> : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
+                                <button 
+                                  onClick={() => handleDownload(att)}
+                                  className="flex items-center gap-3 text-sm font-medium text-primary hover:underline text-left"
+                                  disabled={downloadingId === att.id}
+                                >
+                                  {att.r2Key ? getFileIcon(att.mimeType) : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
                                   <span>{att.label}</span>
                                   <span className="text-xs text-muted-foreground">{att.size ? formatSize(att.size) : ''}</span>
-                                  <Download className="h-3 w-3 text-muted-foreground" />
-                                </a>
+                                  {downloadingId === att.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Download className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  )}
+                                </button>
                                 <Link to={`/questions/${att.questionId}`} className="text-xs text-muted-foreground hover:underline">
                                   View Question
                                 </Link>

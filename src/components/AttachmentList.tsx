@@ -1,9 +1,8 @@
 import { useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Paperclip, PlusCircle, Folder, Link as LinkIcon, Trash2, Loader2, Upload, FileIcon, Download } from 'lucide-react';
+import { Paperclip, Folder, Trash2, Loader2, Upload, FileIcon, Download, ImageIcon, FileTextIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
@@ -22,11 +21,41 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const { data: attachments, isLoading } = useQuery<Attachment[]>({
     queryKey: ['attachments', questionId],
     queryFn: () => api(`/api/attachments?questionId=${questionId}`),
     enabled: !!questionId,
   });
+  const handleDownload = async (att: Attachment) => {
+    if (!att.downloadUrl) return;
+    // If it's a legacy external link, just open it
+    if (att.folderPath) {
+      window.open(att.folderPath, '_blank');
+      return;
+    }
+    setDownloadingId(att.id);
+    try {
+      const response = await fetch(att.downloadUrl);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.filename || att.label || 'download';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      if (response.headers.get('X-Mock-Download') === 'true') {
+        toast.info('Downloaded mock file (R2 storage not active)');
+      }
+    } catch (error: any) {
+      toast.error(`Download failed: ${error.message}`);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
   const uploadFile = async (file: File) => {
     setIsUploading(true);
     setUploadProgress(10);
@@ -79,6 +108,12 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+  const getFileIcon = (mimeType?: string) => {
+    if (!mimeType) return <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />;
+    if (mimeType.startsWith('image/')) return <ImageIcon className="h-4 w-4 text-pink-500 shrink-0" />;
+    if (mimeType.includes('pdf')) return <FileTextIcon className="h-4 w-4 text-red-500 shrink-0" />;
+    return <FileIcon className="h-4 w-4 text-blue-500 shrink-0" />;
+  };
   return (
     <Card>
       <CardHeader>
@@ -98,20 +133,24 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
             {attachments.map((att) => (
               <motion.li key={att.id} whileHover={{ scale: 1.01 }} className="flex items-center justify-between p-2 rounded-md hover:bg-accent group border border-transparent hover:border-border">
                 <div className="flex items-center gap-3 overflow-hidden">
-                  {att.r2Key ? <FileIcon className="h-4 w-4 text-blue-500 shrink-0" /> : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  {att.r2Key ? getFileIcon(att.mimeType) : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
                   <div className="flex flex-col min-w-0">
-                    <a
-                      href={att.downloadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-1"
+                    <button
+                      onClick={() => handleDownload(att)}
+                      className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-1 text-left"
+                      disabled={downloadingId === att.id}
                     >
                       {att.label}
-                      <Download className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
+                      {downloadingId === att.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Download className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </button>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                       {att.size && <span>{formatSize(att.size)}</span>}
                       <span>{formatDistanceToNow(new Date(att.createdAt), { addSuffix: true })}</span>
+                      {att.mimeType && <span className="uppercase">{att.mimeType.split('/')[1]}</span>}
                     </div>
                   </div>
                 </div>
@@ -147,14 +186,14 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
             <h4 className="text-sm font-medium">Upload New File</h4>
             <span className="text-[10px] text-muted-foreground">Max 10MB</span>
           </div>
-          <div 
+          <div
             className="border-2 border-dashed rounded-lg p-6 text-center hover:bg-accent/50 transition-colors cursor-pointer relative"
             onClick={() => fileInputRef.current?.click()}
           >
-            <input 
-              type="file" 
-              className="hidden" 
-              ref={fileInputRef} 
+            <input
+              type="file"
+              className="hidden"
+              ref={fileInputRef}
               onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
               disabled={isUploading}
             />

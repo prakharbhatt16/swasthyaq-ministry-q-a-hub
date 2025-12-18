@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -18,7 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Paperclip, Trash2, FileText } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Trash2, FileText } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, Comment, House } from '@shared/types';
 import { AttachmentList } from '@/components/AttachmentList';
@@ -71,21 +71,21 @@ export default function QuestionEditor() {
   const isViewMode = id && !location.pathname.endsWith('/edit');
   const [tagInput, setTagInput] = useState('');
   const [insertTarget, setInsertTarget] = useState<'body' | 'answer'>('body');
-  const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({ 
-    queryKey: ['questions', id], 
-    queryFn: () => api(`/api/questions/${id}`), 
-    enabled: !!id 
+  const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({
+    queryKey: ['questions', id],
+    queryFn: () => api(`/api/questions/${id}`),
+    enabled: !!id
   });
-  const { data: divisions, isLoading: isLoadingDivisions } = useQuery<string[]>({ 
-    queryKey: ['divisions'], 
-    queryFn: () => api('/api/divisions') 
+  const { data: divisions, isLoading: isLoadingDivisions } = useQuery<string[]>({
+    queryKey: ['divisions'],
+    queryFn: () => api('/api/divisions')
   });
   const form = useForm<QuestionFormData>({
     resolver: zodResolver(questionSchema),
     defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha', tags: [] }
   });
-  useEffect(() => { 
-    if (question) form.reset({ ...question, answer: question.answer || '', tags: question.tags || [] }); 
+  useEffect(() => {
+    if (question) form.reset({ ...question, answer: question.answer || '', tags: question.tags || [] });
   }, [question, form]);
   const mutation = useMutation({
     mutationFn: (data: Partial<Question>) => api<Question>(isNew ? '/api/questions' : `/api/questions/${id}`, { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(data) }),
@@ -125,6 +125,7 @@ export default function QuestionEditor() {
     form.setValue('tags', currentTags.filter(t => t !== tagToRemove));
   };
   const handleInsertAttachment = (label: string, downloadUrl: string) => {
+    // Ensure we use the canonical download endpoint if it's an internal file
     const markdownLink = `\n[Download ${label}](${downloadUrl})`;
     const currentVal = form.getValues(insertTarget) || '';
     form.setValue(insertTarget, currentVal + markdownLink);
@@ -210,10 +211,10 @@ export default function QuestionEditor() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <AttachmentList 
-                      questionId={id} 
-                      division={form.watch('division') || question?.division || ''} 
-                      onAttachmentAdded={handleInsertAttachment} 
+                    <AttachmentList
+                      questionId={id}
+                      division={form.watch('division') || question?.division || ''}
+                      onAttachmentAdded={handleInsertAttachment}
                     />
                   </div>
                 )}
