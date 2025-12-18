@@ -17,7 +17,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Paperclip } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Paperclip, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, Comment, House } from '@shared/types';
 import { AttachmentList } from '@/components/AttachmentList';
@@ -30,7 +31,7 @@ const questionSchema = z.object({
   status: z.enum(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed']),
   answer: z.string().optional(),
   memberName: z.string().min(1, 'Member name is required'),
-  ticketNumber: z.string().optional(),
+  ticketNumber: z.string().min(1, 'Ticket number is required'),
   house: z.enum(['Lok Sabha', 'Rajya Sabha']),
   tags: z.array(z.string().min(1)).optional(),
   inlineAttachments: z.array(z.object({ type: z.enum(['body', 'answer']), attachmentId: z.string() })).optional(),
@@ -72,7 +73,10 @@ export default function QuestionEditor() {
   const [insertTarget, setInsertTarget] = useState<'body' | 'answer'>('body');
   const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({ queryKey: ['questions', id], queryFn: () => api(`/api/questions/${id}`), enabled: !!id });
   const { data: divisions, isLoading: isLoadingDivisions } = useQuery<string[]>({ queryKey: ['divisions'], queryFn: () => api('/api/divisions') });
-  const form = useForm<QuestionFormData>({ resolver: zodResolver(questionSchema), defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha', tags: [] } });
+  const form = useForm<QuestionFormData>({ 
+    resolver: zodResolver(questionSchema), 
+    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha', tags: [] } 
+  });
   useEffect(() => { if (question) form.reset({ ...question, answer: question.answer || '', tags: question.tags || [] }); }, [question, form]);
   const mutation = useMutation({
     mutationFn: (data: Partial<Question>) => api<Question>(isNew ? '/api/questions' : `/api/questions/${id}`, { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(data) }),
@@ -84,6 +88,16 @@ export default function QuestionEditor() {
       navigate(isNew ? `/questions/${data.id}` : `/questions/${id}`);
     },
     onError: (error) => toast.error(`Failed to save question: ${error.message}`),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: () => api(`/api/questions/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast.success('Question deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+      navigate('/questions');
+    },
+    onError: (error) => toast.error(`Failed to delete question: ${error.message}`),
   });
   const onSubmit = (data: QuestionFormData) => mutation.mutate(data);
   const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -111,7 +125,34 @@ export default function QuestionEditor() {
   if (isViewMode) {
     return (
       <div className="min-h-screen bg-secondary/40"><ThemeToggle className="fixed top-4 right-4" /><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="py-8 md:py-10 lg:py-12">
-            <div className="flex justify-between items-center mb-4"><Button variant="ghost" onClick={() => navigate('/questions')}><ArrowLeft className="h-4 w-4 mr-2" /> Back to Questions</Button><Button onClick={() => navigate(`/questions/${id}/edit`)}><Edit className="h-4 w-4 mr-2" /> Edit</Button></div>
+            <div className="flex justify-between items-center mb-4">
+              <Button variant="ghost" onClick={() => navigate('/questions')}><ArrowLeft className="h-4 w-4 mr-2" /> Back to Questions</Button>
+              <div className="flex gap-2">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={deleteMutation.isPending}>
+                      {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the question and all its associated attachments.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Delete Question
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Button onClick={() => navigate(`/questions/${id}/edit`)}><Edit className="h-4 w-4 mr-2" /> Edit</Button>
+              </div>
+            </div>
             {isLoading ? <Skeleton className="h-96 w-full" /> : question && (
               <motion.div className="space-y-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <Card><CardHeader>
@@ -134,7 +175,10 @@ export default function QuestionEditor() {
             <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                 <Card><CardHeader><CardTitle>{isNew ? 'Create New Question' : 'Edit Question'}</CardTitle></CardHeader><CardContent className="space-y-6">
                       {isLoading && !isNew ? (<div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-1/2" /><Skeleton className="h-32 w-full" /></div>) : (<>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FormField control={form.control} name="memberName" render={({ field }) => (<FormItem><FormLabel>Member Name</FormLabel><FormControl><Input placeholder="e.g., Dr. Rajesh Kumar" {...field} /></FormControl><FormMessage /></FormItem>)} />{!isNew && <FormField control={form.control} name="ticketNumber" render={({ field }) => (<FormItem><FormLabel>Ticket Number</FormLabel><FormControl><Input readOnly {...field} /></FormControl><FormMessage /></FormItem>)} />}</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <FormField control={form.control} name="memberName" render={({ field }) => (<FormItem><FormLabel>Member Name</FormLabel><FormControl><Input placeholder="e.g., Dr. Rajesh Kumar" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="ticketNumber" render={({ field }) => (<FormItem><FormLabel>Ticket Number</FormLabel><FormControl><Input placeholder="e.g., Q-001" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                          </div>
                           <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Enter question title..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /><FormField control={form.control} name="house" render={({ field }) => (<FormItem><FormLabel>House</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a house" /></SelectTrigger></FormControl><SelectContent>{(['Lok Sabha', 'Rajya Sabha'] as House[]).map((house) => (<SelectItem key={house} value={house}>{house}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /></div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /><FormField control={form.control} name="tags" render={({ field }) => (<FormItem><FormLabel>Tags</FormLabel><FormControl><div><Input placeholder="Add tags like #vaccine, #rural..." value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown} /><div className="flex flex-wrap gap-1 mt-2"><AnimatePresence>{(field.value || []).map(tag => (<motion.div key={tag} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}><Badge variant="secondary" className="flex items-center gap-1">#{tag}<button type="button" onClick={() => removeTag(tag)} className="rounded-full hover:bg-muted-foreground/20"><X className="h-3 w-3" /></button></Badge></motion.div>))}</AnimatePresence></div></div></FormControl><FormMessage /></FormItem>)} /></div>

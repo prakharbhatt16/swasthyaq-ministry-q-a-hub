@@ -131,11 +131,14 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     return ok(c, await question.getState());
   });
   app.post('/api/questions', async (c) => {
-    const { title, body, division, memberName, house, tags } = await c.req.json<Partial<Question>>();
+    const { title, body, division, memberName, house, tags, ticketNumber: customTicket } = await c.req.json<Partial<Question>>();
     if (!isStr(title) || !isStr(body) || !isStr(division) || !isStr(memberName) || !isStr(house)) return bad(c, 'title, body, division, memberName, and house are required');
-    const allQuestions = await QuestionEntity.list(c.env, null, 10000);
-    const nextId = allQuestions.items.length + 1;
-    const ticketNumber = `Q-${String(nextId).padStart(3, '0')}`;
+    let ticketNumber = customTicket;
+    if (!ticketNumber) {
+      const allQuestions = await QuestionEntity.list(c.env, null, 10000);
+      const nextId = allQuestions.items.length + 1;
+      ticketNumber = `Q-${String(nextId).padStart(3, '0')}`;
+    }
     const now = Date.now();
     const newQuestion: Question = {
       id: crypto.randomUUID(), ticketNumber, memberName, title, body, division, house, status: 'Draft', attachmentIds: [], createdAt: now, createdBy: 'u1', updatedAt: now, comments: [], tags: normalizeTags(tags), inlineAttachments: [],
@@ -148,11 +151,11 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const rawPatch = await c.req.json<Partial<Question>>();
     const question = new QuestionEntity(c.env, id);
     if (!await question.exists()) return notFound(c, 'Question not found');
-    const current = await question.getState();
-    if (rawPatch.ticketNumber && rawPatch.ticketNumber !== current.ticketNumber) return bad(c, 'Ticket number cannot be changed');
-    if (rawPatch.house && rawPatch.house !== current.house) return bad(c, 'House cannot be changed');
-    const { ticketNumber, house, tags, ...rest } = rawPatch as Partial<Question>;
-    const sanitized = { ...rest, tags: normalizeTags(tags) };
+    const { tags, ...rest } = rawPatch as Partial<Question>;
+    const sanitized = { ...rest };
+    if (tags !== undefined) {
+      sanitized.tags = normalizeTags(tags);
+    }
     await question.mutate(q => ({ ...q, ...sanitized, id: q.id, updatedAt: Date.now() }));
     return ok(c, await question.getState());
   });
@@ -165,8 +168,17 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   });
   app.delete('/api/questions/:id', async (c) => {
     const { id } = c.req.param();
-    const deleted = await QuestionEntity.delete(c.env, id);
-    return ok(c, { id, deleted });
+    const question = new QuestionEntity(c.env, id);
+    if (await question.exists()) {
+      const state = await question.getState();
+      // Cascading delete of attachments
+      if (state.attachmentIds && state.attachmentIds.length > 0) {
+        await AttachmentEntity.deleteMany(c.env, state.attachmentIds);
+      }
+      await QuestionEntity.delete(c.env, id);
+      return ok(c, { id, deleted: true });
+    }
+    return notFound(c, 'Question not found');
   });
   // Comments
   app.get('/api/questions/:id/comments', async (c) => {
@@ -207,6 +219,24 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       await question.mutate(q => ({ ...q, attachmentIds: [...q.attachmentIds, newAttachment.id] }));
     }
     return ok(c, newAttachment);
+  });
+  app.delete('/api/attachments/:id', async (c) => {
+    const { id } = c.req.param();
+    const attachment = new AttachmentEntity(c.env, id);
+    if (!await attachment.exists()) return notFound(c, 'Attachment not found');
+    const state = await attachment.getState();
+    const questionId = state.questionId;
+    await AttachmentEntity.delete(c.env, id);
+    // Sync parent question
+    const question = new QuestionEntity(c.env, questionId);
+    if (await question.exists()) {
+      await question.mutate(q => ({
+        ...q,
+        attachmentIds: (q.attachmentIds || []).filter(aid => aid !== id),
+        inlineAttachments: (q.inlineAttachments || []).filter(ia => ia.attachmentId !== id)
+      }));
+    }
+    return ok(c, { id, deleted: true });
   });
   // Admin Routes
   app.post('/api/admin/seed', async (c) => {

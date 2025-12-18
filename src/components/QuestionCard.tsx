@@ -1,14 +1,18 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Paperclip, Calendar, Edit } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Paperclip, Calendar, Edit, Trash2, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { Question, QuestionStatus } from '@shared/types';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api-client';
 interface QuestionCardProps {
   question: Question;
   isSelected: boolean;
@@ -24,6 +28,16 @@ const statusColors: { [key in QuestionStatus]: string } = {
   Closed: 'bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-900/50 dark:text-purple-300 dark:hover:bg-purple-900/80',
 };
 export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 'grid' }: QuestionCardProps) {
+  const queryClient = useQueryClient();
+  const deleteMutation = useMutation({
+    mutationFn: () => api(`/api/questions/${question.id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast.success(`Question ${question.ticketNumber} deleted`);
+      queryClient.invalidateQueries({ queryKey: ['questions'] });
+      queryClient.invalidateQueries({ queryKey: ['metrics'] });
+    },
+    onError: (error) => toast.error(`Failed to delete question: ${error.message}`),
+  });
   const renderTags = (q: Question) => (
     q.tags && q.tags.length > 0 && (
       <div className="flex flex-wrap items-center gap-1 mt-2">
@@ -31,6 +45,29 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
         {q.tags.length > 3 && <Badge variant="outline" className="text-xs">+{q.tags.length - 3}</Badge>}
       </div>
     )
+  );
+  const DeleteButton = () => (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
+          {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Question?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete {question.ticketNumber}? This will also delete all associated attachments.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
   if (viewMode === 'list') {
     return (
@@ -50,7 +87,10 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
               <TooltipProvider><Tooltip><TooltipTrigger><Badge className={cn('transition-colors', statusColors[question.status])}>{question.status}</Badge></TooltipTrigger><TooltipContent>Updated {formatDistanceToNow(new Date(question.updatedAt), { addSuffix: true })}</TooltipContent></Tooltip></TooltipProvider>
             </div>
           </div>
-          <div className="p-4 hidden md:flex items-center gap-2"><Button asChild variant="ghost" size="sm"><Link to={`/questions/${question.id}/edit`} aria-label={`Edit ${question.title}`}><Edit className="h-4 w-4" /></Link></Button></div>
+          <div className="p-4 hidden md:flex items-center gap-1">
+            <Button asChild variant="ghost" size="sm"><Link to={`/questions/${question.id}/edit`} aria-label={`Edit ${question.title}`}><Edit className="h-4 w-4" /></Link></Button>
+            <DeleteButton />
+          </div>
         </Card>
       </motion.div>
     );
@@ -75,7 +115,10 @@ export function QuestionCard({ question, isSelected, onToggleSelect, viewMode = 
             <TooltipProvider><Tooltip><TooltipTrigger className="flex items-center gap-1"><Calendar className="h-3 w-3" /><span>{formatDistanceToNow(new Date(question.createdAt), { addSuffix: true })}</span></TooltipTrigger><TooltipContent><p>Created at: {new Date(question.createdAt).toLocaleString()}</p></TooltipContent></Tooltip></TooltipProvider>
             <div className="flex items-center gap-1"><Paperclip className="h-3 w-3" /><span>{question.attachmentIds.length}</span></div>
           </div>
-          <div className="flex gap-2 w-full sm:w-auto"><Button asChild variant="ghost" size="sm" className="flex-1 sm:flex-none"><Link to={`/questions/${question.id}/edit`} aria-label={`Edit ${question.title}`}><Edit className="h-4 w-4 mr-2" /> Edit</Link></Button></div>
+          <div className="flex gap-1 w-full sm:w-auto">
+            <Button asChild variant="ghost" size="sm" className="flex-1 sm:flex-none"><Link to={`/questions/${question.id}/edit`} aria-label={`Edit ${question.title}`}><Edit className="h-4 w-4 mr-2" /> Edit</Link></Button>
+            <DeleteButton />
+          </div>
         </CardFooter>
       </Card>
     </motion.div>
