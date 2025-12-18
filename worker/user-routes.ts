@@ -1,11 +1,10 @@
 import { Hono } from "hono";
 import type { Env as BaseEnv } from './core-utils';
-import { UserEntity, ChatBoardEntity, QuestionEntity, AttachmentEntity } from "./entities";
+import { UserEntity, QuestionEntity, AttachmentEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-import type { Question, QuestionStatus, Attachment, Comment, AuditLog, House } from "@shared/types";
+import type { Question, QuestionStatus, Attachment, Comment, House } from "@shared/types";
 import { DIVISIONS, MOCK_AUDIT_LOGS } from "@shared/mock-data";
 import * as xlsx from 'xlsx';
-// Extend Env for R2 support
 interface Env extends BaseEnv {
   ATTACHMENTS_BUCKET: R2Bucket;
 }
@@ -38,8 +37,6 @@ const normalizeTags = (tags: unknown): string[] => {
     .filter(t => t.length > 0);
 };
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
-  app.get('/api/test', (c) => c.json({ success: true, data: { name: 'CF Workers Demo' }}));
-  // SWASTHYAQ ROUTES
   app.get('/api/divisions', (c) => ok(c, DIVISIONS));
   app.get('/api/metrics', async (c) => {
     await QuestionEntity.ensureSeed(c.env);
@@ -78,10 +75,8 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await QuestionEntity.ensureSeed(c.env);
     const allQuestions = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
     allQuestions.sort((a, b) => b.updatedAt - a.updatedAt);
-    const recent = allQuestions.slice(0, 10);
-    return ok(c, recent.map(q => ({ id: q.id, title: q.title, status: q.status, updatedAt: q.updatedAt, ticketNumber: q.ticketNumber, tags: q.tags })));
+    return ok(c, allQuestions.slice(0, 10).map(q => ({ id: q.id, title: q.title, status: q.status, updatedAt: q.updatedAt, ticketNumber: q.ticketNumber, tags: q.tags })));
   });
-  // Questions CRUD
   app.get('/api/questions', async (c) => {
     await QuestionEntity.ensureSeed(c.env);
     const { cursor, limit, division, status, search, house, tag } = c.req.query();
@@ -92,255 +87,155 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (isStr(house)) items = items.filter(q => q.house.toLowerCase() === house.toLowerCase());
     if (isStr(tag)) items = items.filter(q => q.tags?.includes(tag.toLowerCase()));
     if (isStr(search)) {
-      const searchTerm = search.toLowerCase();
-      items = items.filter(q =>
-        q.title.toLowerCase().includes(searchTerm) ||
-        q.body.toLowerCase().includes(searchTerm) ||
-        q.ticketNumber.toLowerCase().includes(searchTerm) ||
-        q.memberName.toLowerCase().includes(searchTerm) ||
-        q.tags?.some(t => t.includes(searchTerm))
+      const term = search.toLowerCase();
+      items = items.filter(q => 
+        q.title.toLowerCase().includes(term) || 
+        q.body.toLowerCase().includes(term) || 
+        q.ticketNumber.toLowerCase().includes(term) ||
+        q.memberName.toLowerCase().includes(term)
       );
     }
     return ok(c, { ...page, items });
   });
   app.get('/api/questions/export-csv', async (c) => {
-    await QuestionEntity.ensureSeed(c.env);
     const questions = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
-    const csv = generateCSV(questions);
-    return ok(c, csv);
+    return ok(c, generateCSV(questions));
   });
   app.post('/api/questions/export-excel', async (c) => {
-    await QuestionEntity.ensureSeed(c.env);
     const questions = await QuestionEntity.list(c.env, null, 10000).then(p => p.items);
     const attachments = await AttachmentEntity.list(c.env, null, 10000).then(p => p.items);
-    const qSheet = xlsx.utils.json_to_sheet(questions.map(q => ({ ...q, tags: (q.tags || []).join(', '), inlineAttachments: JSON.stringify(q.inlineAttachments || []) })));
-    const aSheet = xlsx.utils.json_to_sheet(attachments);
     const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, qSheet, 'Questions');
-    xlsx.utils.book_append_sheet(wb, aSheet, 'Attachments');
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(questions), 'Questions');
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(attachments), 'Attachments');
     const buf = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
-    return new Response(buf, { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="questions-${Date.now()}.xlsx"` } });
+    return new Response(buf, { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="swasthyaq-export.xlsx"` } });
   });
   app.get('/api/questions/:id', async (c) => {
-    const { id } = c.req.param();
-    const question = new QuestionEntity(c.env, id);
-    if (!await question.exists()) return notFound(c, 'Question not found');
-    return ok(c, await question.getState());
+    const q = new QuestionEntity(c.env, c.req.param('id'));
+    if (!await q.exists()) return notFound(c);
+    return ok(c, await q.getState());
   });
   app.post('/api/questions', async (c) => {
-    const { title, body, division, memberName, house, tags, ticketNumber: customTicket } = await c.req.json<Partial<Question>>();
-    if (!isStr(title) || !isStr(body) || !isStr(division) || !isStr(memberName) || !isStr(house)) return bad(c, 'title, body, division, memberName, and house are required');
-    let ticketNumber = customTicket;
-    if (!ticketNumber) {
-      const allQuestions = await QuestionEntity.list(c.env, null, 10000);
-      const nextId = allQuestions.items.length + 1;
-      ticketNumber = `Q-${String(nextId).padStart(3, '0')}`;
-    }
+    const body = await c.req.json<Partial<Question>>();
+    if (!isStr(body.title) || !isStr(body.division)) return bad(c, 'Missing required fields');
+    const id = crypto.randomUUID();
     const now = Date.now();
-    const newQuestion: Question = {
-      id: crypto.randomUUID(), ticketNumber, memberName, title, body, division, house, status: 'Draft', attachmentIds: [], createdAt: now, createdBy: 'u1', updatedAt: now, comments: [], tags: normalizeTags(tags), inlineAttachments: [],
+    const question: Question = {
+      ...QuestionEntity.initialState,
+      ...body,
+      id,
+      createdAt: now,
+      updatedAt: now,
+      status: body.status || 'Draft',
+      tags: normalizeTags(body.tags),
     };
-    await QuestionEntity.create(c.env, newQuestion);
-    return ok(c, newQuestion);
+    await QuestionEntity.create(c.env, question);
+    return ok(c, question);
+  });
+  app.patch('/api/questions/:id', async (c) => {
+    const id = c.req.param('id');
+    const patch = await c.req.json<Partial<Question>>();
+    const q = new QuestionEntity(c.env, id);
+    if (!await q.exists()) return notFound(c);
+    const sanitized = { ...patch };
+    if (patch.tags) sanitized.tags = normalizeTags(patch.tags);
+    const updated = await q.mutate(s => ({ ...s, ...sanitized, id: s.id, updatedAt: Date.now() }));
+    return ok(c, updated);
   });
   app.post('/api/questions/bulk-status', async (c) => {
     const { ids, status } = await c.req.json<{ ids: string[], status: QuestionStatus }>();
-    if (!Array.isArray(ids) || !status) return bad(c, 'ids (array) and status are required');
+    if (!Array.isArray(ids) || !status) return bad(c, 'Invalid payload');
     const now = Date.now();
-    const results = await Promise.all(ids.map(async (id) => {
+    await Promise.all(ids.map(async id => {
       const q = new QuestionEntity(c.env, id);
-      if (await q.exists()) {
-        await q.mutate(state => ({ ...state, status, updatedAt: now }));
-        return true;
-      }
-      return false;
+      if (await q.exists()) await q.mutate(s => ({ ...s, status, updatedAt: now }));
     }));
-    return ok(c, { updated: results.filter(Boolean).length });
-  });
-  app.patch('/api/questions/:id', async (c) => {
-    const { id } = c.req.param();
-    const rawPatch = await c.req.json<Partial<Question>>();
-    const question = new QuestionEntity(c.env, id);
-    if (!await question.exists()) return notFound(c, 'Question not found');
-    const { tags, ...rest } = rawPatch;
-    const sanitized: Partial<Question> = { ...rest };
-    if (tags !== undefined) {
-      sanitized.tags = normalizeTags(tags);
-    }
-    await question.mutate(q => ({ ...q, ...sanitized, id: q.id, updatedAt: Date.now() }));
-    return ok(c, await question.getState());
+    return ok(c, { count: ids.length });
   });
   app.delete('/api/questions/:id', async (c) => {
-    const { id } = c.req.param();
-    const question = new QuestionEntity(c.env, id);
-    if (await question.exists()) {
-      const state = await question.getState();
-      if (state.attachmentIds && state.attachmentIds.length > 0) {
-        for (const aid of state.attachmentIds) {
-          const att = new AttachmentEntity(c.env, aid);
-          if (await att.exists()) {
-            const attState = await att.getState();
-            if (attState.r2Key && c.env.ATTACHMENTS_BUCKET) {
-              await c.env.ATTACHMENTS_BUCKET.delete(attState.r2Key);
-            }
-          }
-        }
-        await AttachmentEntity.deleteMany(c.env, state.attachmentIds);
+    const id = c.req.param('id');
+    const q = new QuestionEntity(c.env, id);
+    if (!await q.exists()) return notFound(c);
+    const state = await q.getState();
+    if (state.attachmentIds?.length) {
+      for (const aid of state.attachmentIds) {
+        const att = new AttachmentEntity(c.env, aid);
+        const attState = await att.getState();
+        if (attState.r2Key && c.env.ATTACHMENTS_BUCKET) await c.env.ATTACHMENTS_BUCKET.delete(attState.r2Key);
+        await AttachmentEntity.delete(c.env, aid);
       }
-      await QuestionEntity.delete(c.env, id);
-      return ok(c, { id, deleted: true });
     }
-    return notFound(c, 'Question not found');
+    await QuestionEntity.delete(c.env, id);
+    return ok(c, { deleted: true });
   });
-  // Attachments CRUD with R2
   app.get('/api/attachments', async (c) => {
-    await AttachmentEntity.ensureSeed(c.env);
     const { questionId } = c.req.query();
-    const allAttachments = await AttachmentEntity.list(c.env, null, 1000).then(p => p.items);
-    const mapped = allAttachments.map(a => ({
-      ...a,
-      downloadUrl: a.folderPath || (a.r2Key ? `/api/attachments/${a.id}/download` : undefined)
-    }));
-    if (isStr(questionId)) {
-      return ok(c, mapped.filter(a => a.questionId === questionId));
-    }
-    return ok(c, mapped);
+    let list = await AttachmentEntity.list(c.env, null, 1000).then(p => p.items);
+    if (isStr(questionId)) list = list.filter(a => a.questionId === questionId);
+    return ok(c, list.map(a => ({ ...a, downloadUrl: a.folderPath || `/api/attachments/${a.id}/download` })));
   });
   app.post('/api/attachments', async (c) => {
     const formData = await c.req.formData();
-    // Fix TS2339: Property 'entries' does not exist on type 'FormData'
-    // Use forEach which is standard on FormData
-    const entryLogs: string[] = [];
-    formData.forEach((value, key) => {
-      entryLogs.push(`${String(key)}: ${value instanceof File ? `File ${value.name || 'unnamed'} (${value.size || 0}B)` : String(value)}`);
-    });
-    console.log('POST /api/attachments entries:', entryLogs);
     const file = formData.get('file') as File | null;
     const questionId = formData.get('questionId') as string;
     const division = formData.get('division') as string;
-    const label = formData.get('label') as string;
-    const folderPath = formData.get('folderPath') as string;
-    if (!isStr(questionId) || !isStr(division)) return bad(c, 'questionId and division are required');
+    if (!isStr(questionId)) return bad(c, 'questionId required');
     const id = crypto.randomUUID();
-    let attachmentData: Attachment = {
-      id,
-      questionId,
-      label: label || (file?.name || 'Untitled'),
-      division,
-      createdAt: Date.now(),
+    const attachment: Attachment = {
+      ...AttachmentEntity.initialState,
+      id, questionId, division, createdAt: Date.now(),
+      label: file?.name || (formData.get('label') as string) || 'Untitled',
     };
     if (file) {
-      if (file.size > 10 * 1024 * 1024) return bad(c, 'File too large (max 10MB)');
-      attachmentData.filename = file.name;
-      attachmentData.size = Number(file.size);
-      attachmentData.mimeType = file.type;
-      attachmentData.downloadUrl = `/api/attachments/${id}/download`;
+      attachment.filename = file.name;
+      attachment.size = file.size;
+      attachment.mimeType = file.type;
       if (c.env.ATTACHMENTS_BUCKET) {
-        const r2Key = `attachments/${questionId}/${id}-${file.name}`;
-        await c.env.ATTACHMENTS_BUCKET.put(r2Key, file.stream(), {
-          httpMetadata: { contentType: file.type }
-        });
-        attachmentData.r2Key = r2Key;
+        const key = `attachments/${questionId}/${id}-${file.name}`;
+        await c.env.ATTACHMENTS_BUCKET.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+        attachment.r2Key = key;
       }
-    } else if (isStr(folderPath)) {
-      attachmentData.folderPath = folderPath;
-      attachmentData.downloadUrl = folderPath;
+    } else {
+      attachment.folderPath = formData.get('folderPath') as string;
     }
-    await AttachmentEntity.create(c.env, attachmentData);
-    const question = new QuestionEntity(c.env, questionId);
-    if (await question.exists()) {
-      await question.mutate(q => ({ ...q, attachmentIds: [...(q.attachmentIds || []), id] }));
-    }
-    return ok(c, attachmentData);
+    await AttachmentEntity.create(c.env, attachment);
+    const q = new QuestionEntity(c.env, questionId);
+    if (await q.exists()) await q.mutate(s => ({ ...s, attachmentIds: [...(s.attachmentIds || []), id] }));
+    return ok(c, attachment);
   });
   app.get('/api/attachments/:id/download', async (c) => {
-    const { id } = c.req.param();
-    const attachment = new AttachmentEntity(c.env, id);
-    if (!await attachment.exists()) return notFound(c, 'Attachment not found');
-    const state = await attachment.getState();
-    // 1. Try R2 Storage
-    if (state.r2Key && c.env.ATTACHMENTS_BUCKET) {
-      const object = await c.env.ATTACHMENTS_BUCKET.get(state.r2Key);
-      if (object) {
+    const att = new AttachmentEntity(c.env, c.req.param('id'));
+    if (!await att.exists()) return notFound(c);
+    const s = await att.getState();
+    if (s.r2Key && c.env.ATTACHMENTS_BUCKET) {
+      const obj = await c.env.ATTACHMENTS_BUCKET.get(s.r2Key);
+      if (obj) {
         const headers = new Headers();
-        object.writeHttpMetadata(headers);
-        headers.set('etag', object.httpEtag);
-        headers.set('Content-Disposition', `attachment; filename="${state.filename || 'download'}"`);
-        return new Response(object.body, { headers });
+        obj.writeHttpMetadata(headers);
+        headers.set('Content-Disposition', `attachment; filename="${s.filename || 'file'}"`);
+        return new Response(obj.body, { headers });
       }
     }
-    // 2. Try Legacy Folder Path (Redirect)
-    if (state.folderPath) {
-      return c.redirect(state.folderPath);
-    }
-    // 3. Mock Download Fallback (for Sandbox/Preview environments)
-    const filename = state.filename || state.label || 'document.txt';
-    const mimeType = state.mimeType || 'text/plain';
-    let mockContent: Uint8Array;
-    if (mimeType.includes('pdf')) {
-      mockContent = new TextEncoder().encode('%PDF-1.4\n%Mock PDF Content for SwasthyaQ\n%%EOF');
-    } else if (mimeType.includes('image')) {
-      // Minimal valid 1x1 transparent GIF
-      mockContent = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x21, 0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b]);
-    } else {
-      mockContent = new TextEncoder().encode(`SwasthyaQ Mock Content\nFile: ${filename}\nID: ${id}\nThis is a placeholder for environments without R2 storage.`);
-    }
-    return new Response(mockContent, {
-      headers: {
-        'Content-Type': mimeType,
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'X-Mock-Download': 'true'
-      }
-    });
+    if (s.folderPath) return c.redirect(s.folderPath);
+    return new Response("Mock Content", { headers: { 'Content-Type': 'text/plain', 'Content-Disposition': `attachment; filename="${s.label}.txt"`, 'X-Mock-Download': 'true' } });
   });
-  app.delete('/api/attachments/:id', async (c) => {
-    const { id } = c.req.param();
-    const attachment = new AttachmentEntity(c.env, id);
-    if (!await attachment.exists()) return notFound(c, 'Attachment not found');
-    const state = await attachment.getState();
-    if (state.r2Key && c.env.ATTACHMENTS_BUCKET) {
-      await c.env.ATTACHMENTS_BUCKET.delete(state.r2Key);
-    }
-    await AttachmentEntity.delete(c.env, id);
-    const question = new QuestionEntity(c.env, state.questionId);
-    if (await question.exists()) {
-      await question.mutate(q => ({
-        ...q,
-        attachmentIds: (q.attachmentIds || []).filter(aid => aid !== id),
-        inlineAttachments: (q.inlineAttachments || []).filter(ia => ia.attachmentId !== id)
-      }));
-    }
-    return ok(c, { id, deleted: true });
-  });
-  // Admin & Other Routes
   app.get('/api/tags', async (c) => {
-    await QuestionEntity.ensureSeed(c.env);
-    const questions = await QuestionEntity.list(c.env, null, 10000).then(p => p.items);
-    const allTags = questions.flatMap(q => q.tags || []);
-    const uniqueTags = [...new Set(allTags)].sort();
-    return ok(c, { tags: uniqueTags });
+    const qs = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
+    const tags = [...new Set(qs.flatMap(q => q.tags || []))].sort();
+    return ok(c, { tags });
   });
   app.post('/api/questions/:id/comments', async (c) => {
-    const { id } = c.req.param();
     const { text } = await c.req.json<{ text: string }>();
-    if (!isStr(text)) return bad(c, 'text is required');
-    const question = new QuestionEntity(c.env, id);
-    if (!await question.exists()) return notFound(c, 'Question not found');
-    const newComment: Comment = { id: crypto.randomUUID(), text, author: 'Admin User', createdAt: Date.now() };
-    await question.mutate(q => ({ ...q, comments: [...(q.comments || []), newComment] }));
-    return ok(c, newComment);
+    const q = new QuestionEntity(c.env, c.req.param('id'));
+    if (!await q.exists()) return notFound(c);
+    const comment: Comment = { id: crypto.randomUUID(), text, author: 'Admin User', createdAt: Date.now() };
+    await q.mutate(s => ({ ...s, comments: [...(s.comments || []), comment] }));
+    return ok(c, comment);
   });
-  app.get('/api/questions/:id/comments', async (c) => {
-    const { id } = c.req.param();
-    const question = new QuestionEntity(c.env, id);
-    if (!await question.exists()) return notFound(c, 'Question not found');
-    const state = await question.getState();
-    return ok(c, state.comments || []);
-  });
+  app.get('/api/audit-logs', (c) => ok(c, MOCK_AUDIT_LOGS));
   app.post('/api/admin/seed', async (c) => {
     await QuestionEntity.ensureSeed(c.env);
     await AttachmentEntity.ensureSeed(c.env);
     return ok(c, { seeded: true });
   });
-  app.get('/api/audit-logs', async (c) => ok(c, MOCK_AUDIT_LOGS.sort((a, b) => b.timestamp - a.timestamp)));
 }

@@ -18,52 +18,34 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Trash2, FileText } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Trash2, FileText, ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, Comment, House } from '@shared/types';
 import { AttachmentList } from '@/components/AttachmentList';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 const questionSchema = z.object({
-  title: z.string().min(10, 'Title must be at least 10 characters long'),
-  body: z.string().min(20, 'Body must be at least 20 characters long'),
-  division: z.string().min(1, 'Please select a division'),
+  title: z.string().min(5, 'Title too short'),
+  body: z.string().min(10, 'Body too short'),
+  division: z.string().min(1, 'Division required'),
   status: z.enum(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed']),
   answer: z.string().optional(),
-  memberName: z.string().min(1, 'Member name is required'),
-  ticketNumber: z.string().min(1, 'Ticket number is required'),
+  memberName: z.string().min(1, 'Member name required'),
+  ticketNumber: z.string().optional(),
   house: z.enum(['Lok Sabha', 'Rajya Sabha']),
-  tags: z.array(z.string().min(1)).optional(),
-  inlineAttachments: z.array(z.object({ type: z.enum(['body', 'answer']), attachmentId: z.string() })).optional(),
+  tags: z.array(z.string()).optional(),
 });
 type QuestionFormData = z.infer<typeof questionSchema>;
-const statusColors: { [key in QuestionStatus]: string } = {
-  Draft: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-  Submitted: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
-  Admitted: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
-  'Non-Admitted': 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300',
-  Answered: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
-  Closed: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300',
+const statusColors: Record<QuestionStatus, string> = {
+  Draft: 'bg-muted text-muted-foreground',
+  Submitted: 'bg-yellow-100 text-yellow-800',
+  Admitted: 'bg-blue-100 text-blue-800',
+  'Non-Admitted': 'bg-orange-100 text-orange-800',
+  Answered: 'bg-green-100 text-green-800',
+  Closed: 'bg-purple-100 text-purple-800',
 };
-function CommentsSection({ questionId }: { questionId: string }) {
-  const queryClient = useQueryClient();
-  const [newComment, setNewComment] = useState('');
-  const { data: comments, isLoading } = useQuery<Comment[]>({ queryKey: ['comments', questionId], queryFn: () => api(`/api/questions/${questionId}/comments`) });
-  const mutation = useMutation({
-    mutationFn: (text: string) => api<Comment>(`/api/questions/${questionId}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
-    onSuccess: () => { toast.success('Comment added'); setNewComment(''); queryClient.invalidateQueries({ queryKey: ['comments', questionId] }); },
-    onError: (err) => toast.error(`Failed to add comment: ${err.message}`),
-  });
-  const handleAddComment = () => { if (newComment.trim()) mutation.mutate(newComment.trim()); };
-  return (
-    <Card><CardHeader><CardTitle className="flex items-center gap-2"><MessageSquare className="h-5 w-5" /> Comments</CardTitle></CardHeader><CardContent><div className="space-y-4">
-          {isLoading ? <Skeleton className="h-20" /> : (comments && comments.length > 0 ? (<ul className="space-y-3">{comments.map(comment => (<li key={comment.id} className="text-sm p-2 bg-secondary rounded-md"><p>{comment.text}</p><div className="text-xs text-muted-foreground mt-1 text-right">- {comment.author}, {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}</div></li>))}</ul>) : <p className="text-sm text-muted-foreground text-center py-4">No comments yet.</p>)}
-          <div className="flex gap-2 pt-4 border-t"><Input placeholder="Add a comment..." value={newComment} onChange={e => setNewComment(e.target.value)} disabled={mutation.isPending} /><Button onClick={handleAddComment} disabled={mutation.isPending}><Send className="h-4 w-4" /></Button></div>
-        </div></CardContent></Card>
-  );
-}
 export default function QuestionEditor() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -71,18 +53,18 @@ export default function QuestionEditor() {
   const isViewMode = id && !location.pathname.endsWith('/edit');
   const [tagInput, setTagInput] = useState('');
   const [insertTarget, setInsertTarget] = useState<'body' | 'answer'>('body');
-  const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({
+  const { data: question, isLoading: isLoadingQ } = useQuery<Question>({
     queryKey: ['questions', id],
     queryFn: () => api(`/api/questions/${id}`),
     enabled: !!id
   });
-  const { data: divisions, isLoading: isLoadingDivisions } = useQuery<string[]>({
+  const { data: divisions } = useQuery<string[]>({
     queryKey: ['divisions'],
     queryFn: () => api('/api/divisions')
   });
   const form = useForm<QuestionFormData>({
     resolver: zodResolver(questionSchema),
-    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha', tags: [] }
+    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', house: 'Lok Sabha', tags: [] }
   });
   useEffect(() => {
     if (question) form.reset({ ...question, answer: question.answer || '', tags: question.tags || [] });
@@ -90,137 +72,107 @@ export default function QuestionEditor() {
   const mutation = useMutation({
     mutationFn: (data: Partial<Question>) => api<Question>(isNew ? '/api/questions' : `/api/questions/${id}`, { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(data) }),
     onSuccess: (data) => {
-      toast.success(`Question ${isNew ? 'created' : 'updated'} successfully!`);
+      toast.success('Saved successfully');
       queryClient.invalidateQueries({ queryKey: ['questions'] });
-      queryClient.invalidateQueries({ queryKey: ['metrics'] });
-      if (id) queryClient.invalidateQueries({ queryKey: ['attachments', id] });
-      navigate(isNew ? `/questions/${data.id}` : `/questions/${id}`);
+      navigate(`/questions/${data.id}`);
     },
-    onError: (error) => toast.error(`Failed to save question: ${error.message}`),
+    onError: (err) => toast.error(`Save failed: ${err.message}`)
   });
-  const deleteMutation = useMutation({
-    mutationFn: () => api(`/api/questions/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
-      toast.success('Question deleted successfully');
-      queryClient.invalidateQueries({ queryKey: ['questions'] });
-      queryClient.invalidateQueries({ queryKey: ['metrics'] });
-      navigate('/questions');
-    },
-    onError: (error) => toast.error(`Failed to delete question: ${error.message}`),
-  });
-  const onSubmit = (data: QuestionFormData) => mutation.mutate(data);
-  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      const newTags = tagInput.split(',').map(t => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean);
-      if (newTags.length > 0) {
-        const currentTags = form.getValues('tags') || [];
-        form.setValue('tags', [...new Set([...currentTags, ...newTags])]);
-        setTagInput('');
-      }
-    }
+  const handleInsertAttachment = (label: string, url: string) => {
+    const link = `\n[${label}](${url})`;
+    const current = form.getValues(insertTarget) || '';
+    form.setValue(insertTarget, current + link);
+    toast.info(`Link inserted into ${insertTarget}`);
   };
-  const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues('tags') || [];
-    form.setValue('tags', currentTags.filter(t => t !== tagToRemove));
-  };
-  const handleInsertAttachment = (label: string, downloadUrl: string) => {
-    // Ensure we use the canonical download endpoint if it's an internal file
-    const markdownLink = `\n[Download ${label}](${downloadUrl})`;
-    const currentVal = form.getValues(insertTarget) || '';
-    form.setValue(insertTarget, currentVal + markdownLink);
-    toast.info(`File link inserted into ${insertTarget === 'body' ? 'Question Body' : 'Answer'}.`);
-  };
-  const isLoading = isLoadingQuestion || isLoadingDivisions;
-  if (isViewMode) {
+  if (isViewMode && question) {
     return (
-      <div className="min-h-screen bg-secondary/40"><ThemeToggle className="fixed top-4 right-4" /><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="py-8 md:py-10 lg:py-12">
-            <div className="flex justify-between items-center mb-4">
-              <Button variant="ghost" onClick={() => navigate('/questions')}><ArrowLeft className="h-4 w-4 mr-2" /> Back to Questions</Button>
-              <div className="flex gap-2">
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={deleteMutation.isPending}>
-                      {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                      Delete
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the question and all its associated files from storage.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete Question
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <Button onClick={() => navigate(`/questions/${id}/edit`)}><Edit className="h-4 w-4 mr-2" /> Edit</Button>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        <ThemeToggle className="fixed top-4 right-4" />
+        <div className="flex justify-between items-center mb-6">
+          <Button variant="ghost" onClick={() => navigate('/questions')}><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate(`/questions/${id}/edit`)}><Edit className="h-4 w-4 mr-2" /> Edit</Button>
+          </div>
+        </div>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap gap-2 mb-4">
+                <Badge variant="outline">{question.ticketNumber}</Badge>
+                <Badge className={cn(statusColors[question.status])}>{question.status}</Badge>
+                <Badge variant="secondary">{question.house}</Badge>
               </div>
-            </div>
-            {isLoading ? <Skeleton className="h-96 w-full" /> : question && (
-              <motion.div className="space-y-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <Card><CardHeader>
-                      <div className="flex flex-wrap gap-2 mb-2"><Badge>{question.ticketNumber}</Badge><Badge variant="secondary">Asked by: {question.memberName}</Badge><Badge variant="outline">{question.house}</Badge><Badge className={cn(statusColors[question.status])}>{question.status}</Badge></div>
-                      <div className="flex flex-wrap gap-1">{question.tags?.map(tag => <Badge key={tag} variant="secondary">#{tag}</Badge>)}</div>
-                      <CardTitle className="text-2xl md:text-3xl pt-2">{question.title}</CardTitle><CardDescription>Division: {question.division}</CardDescription>
-                    </CardHeader><CardContent><div className="prose dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{question.body}</ReactMarkdown></div></CardContent></Card>
-                {question.answer && (<Card><CardHeader><CardTitle>Answer</CardTitle></CardHeader><CardContent><div className="prose dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{question.answer}</ReactMarkdown></div></CardContent></Card>)}
-                <AttachmentList questionId={question.id} division={question.division} />
-                <CommentsSection questionId={question.id} />
-              </motion.div>
-            )}
-          </div></div></div>
+              <CardTitle className="text-3xl font-bold">{question.title}</CardTitle>
+              <CardDescription>Division: {question.division} • Asked by {question.memberName}</CardDescription>
+            </CardHeader>
+            <CardContent className="prose dark:prose-invert max-w-none border-t pt-6">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{question.body}</ReactMarkdown>
+            </CardContent>
+          </Card>
+          {question.answer && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader><CardTitle className="text-xl">Official Answer</CardTitle></CardHeader>
+              <CardContent className="prose dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{question.answer}</ReactMarkdown>
+              </CardContent>
+            </Card>
+          )}
+          <AttachmentList questionId={question.id} division={question.division} />
+        </motion.div>
+      </div>
     );
   }
   return (
-    <div className="min-h-screen bg-secondary/40"><ThemeToggle className="fixed top-4 right-4" /><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><div className="py-8 md:py-10 lg:py-12">
-          <Button variant="ghost" onClick={() => navigate(id ? `/questions/${id}` : '/questions')} className="mb-4"><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Form {...form}><form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                <Card><CardHeader><CardTitle>{isNew ? 'Create New Question' : 'Edit Question'}</CardTitle></CardHeader><CardContent className="space-y-6">
-                      {isLoading && !isNew ? (<div className="space-y-4"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-1/2" /><Skeleton className="h-32 w-full" /></div>) : (<>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <FormField control={form.control} name="memberName" render={({ field }) => (<FormItem><FormLabel>Member Name</FormLabel><FormControl><Input placeholder="e.g., Dr. Rajesh Kumar" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="ticketNumber" render={({ field }) => (<FormItem><FormLabel>Ticket Number</FormLabel><FormControl><Input placeholder="e.g., Q-001" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          </div>
-                          <FormField control={form.control} name="title" render={({ field }) => (<FormItem><FormLabel>Title</FormLabel><FormControl><Input placeholder="Enter question title..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FormField control={form.control} name="division" render={({ field }) => (<FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a division" /></SelectTrigger></FormControl><SelectContent>{divisions?.map((div) => (<SelectItem key={div} value={div}>{div}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /><FormField control={form.control} name="house" render={({ field }) => (<FormItem><FormLabel>House</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a house" /></SelectTrigger></FormControl><SelectContent>{(['Lok Sabha', 'Rajya Sabha'] as House[]).map((house) => (<SelectItem key={house} value={house}>{house}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /></div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FormField control={form.control} name="status" render={({ field }) => (<FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger></FormControl><SelectContent>{(['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'] as QuestionStatus[]).map((status) => (<SelectItem key={status} value={status}>{status}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>)} /><FormField control={form.control} name="tags" render={({ field }) => (<FormItem><FormLabel>Tags</FormLabel><FormControl><div><Input placeholder="Add tags like #vaccine, #rural..." value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown} /><div className="flex flex-wrap gap-1 mt-2"><AnimatePresence>{(field.value || []).map(tag => (<motion.div key={tag} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}><Badge variant="secondary" className="flex items-center gap-1">#{tag}<button type="button" onClick={() => removeTag(tag)} className="rounded-full hover:bg-muted-foreground/20"><X className="h-3 w-3" /></button></Badge></motion.div>))}</AnimatePresence></div></div></FormControl><FormMessage /></FormItem>)} /></div>
-                          <FormField control={form.control} name="body" render={({ field }) => (<FormItem><FormLabel>Question Body</FormLabel><FormControl><Textarea placeholder="Detailed question text..." rows={8} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                          <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
-                        </>)}
-                    </CardContent></Card>
-                {!isNew && id && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 p-3 bg-muted rounded-md border">
-                      <FileText className="h-4 w-4 text-primary" />
-                      <p className="text-sm font-medium">Insert File Link into:</p>
-                      <Select value={insertTarget} onValueChange={(v) => setInsertTarget(v as 'body' | 'answer')}>
-                        <SelectTrigger className="w-[180px] h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="body">Question Body</SelectItem>
-                          <SelectItem value="answer">Answer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <AttachmentList
-                      questionId={id}
-                      division={form.watch('division') || question?.division || ''}
-                      onAttachmentAdded={handleInsertAttachment}
-                    />
-                  </div>
-                )}
-                <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending} className="bg-[#F38020] hover:bg-[#d86d11] text-white">{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} {isNew ? 'Create Question' : 'Save Changes'}</Button></div>
-              </form></Form>
-          </motion.div>
-        </div></div></div>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+      <ThemeToggle className="fixed top-4 right-4" />
+      <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6"><ArrowLeft className="h-4 w-4 mr-2" /> Cancel</Button>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(d => mutation.mutate(d))} className="space-y-8">
+          <Card>
+            <CardHeader><CardTitle>{isNew ? 'New Question' : 'Edit Question'}</CardTitle></CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="memberName" render={({ field }) => (
+                  <FormItem><FormLabel>Member Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="house" render={({ field }) => (
+                  <FormItem><FormLabel>House</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Lok Sabha">Lok Sabha</SelectItem><SelectItem value="Rajya Sabha">Rajya Sabha</SelectItem></SelectContent></Select></FormItem>
+                )} />
+              </div>
+              <FormField control={form.control} name="title" render={({ field }) => (
+                <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField control={form.control} name="division" render={({ field }) => (
+                  <FormItem><FormLabel>Division</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{divisions?.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent></Select></FormItem>
+                )} />
+                <FormField control={form.control} name="status" render={({ field }) => (
+                  <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent>{['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></FormItem>
+                )} />
+              </div>
+              <FormField control={form.control} name="body" render={({ field }) => (
+                <FormItem><FormLabel>Question Body (Markdown)</FormLabel><FormControl><Textarea rows={10} {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="answer" render={({ field }) => (
+                <FormItem><FormLabel>Answer (Markdown)</FormLabel><FormControl><Textarea rows={6} {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </CardContent>
+          </Card>
+          {!isNew && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 p-4 bg-muted rounded-xl border">
+                <span className="text-sm font-medium">Insert links into:</span>
+                <Select value={insertTarget} onValueChange={v => setInsertTarget(v as any)}>
+                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="body">Body</SelectItem><SelectItem value="answer">Answer</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <AttachmentList questionId={id!} division={form.watch('division')} onAttachmentAdded={handleInsertAttachment} />
+            </div>
+          )}
+          <div className="flex justify-end"><Button type="submit" size="lg" className="bg-[#F38020] hover:bg-[#d86d11] text-white" disabled={mutation.isPending}>{mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Question</Button></div>
+        </form>
+      </Form>
+    </div>
   );
 }
