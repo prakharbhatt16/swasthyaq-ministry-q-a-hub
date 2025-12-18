@@ -151,8 +151,8 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const rawPatch = await c.req.json<Partial<Question>>();
     const question = new QuestionEntity(c.env, id);
     if (!await question.exists()) return notFound(c, 'Question not found');
-    const { tags, ...rest } = rawPatch as Partial<Question>;
-    const sanitized = { ...rest };
+    const { tags, ...rest } = rawPatch;
+    const sanitized: Partial<Question> = { ...rest };
     if (tags !== undefined) {
       sanitized.tags = normalizeTags(tags);
     }
