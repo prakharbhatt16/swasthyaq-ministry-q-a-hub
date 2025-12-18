@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ArrowRight, BarChart2, FilePlus, ShieldCheck, Zap, Globe } from 'lucide-react';
 import RecentQuestions from '@/components/RecentQuestions';
+import { cn } from '@/lib/utils';
 export function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
