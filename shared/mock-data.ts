@@ -78,6 +78,9 @@ export const MOCK_ATTACHMENTS: Attachment[] = [
     folderPath: 'https://example.com/shared-drive/logistics/q2-report',
     division: 'Logistics',
     createdAt: now - 86400000 * 4,
+    mimeType: 'application/pdf',
+    size: 1240000,
+    filename: 'Distribution_Report_Q2_2024.pdf'
   },
   {
     id: 'a2',
@@ -86,6 +89,9 @@ export const MOCK_ATTACHMENTS: Attachment[] = [
     folderPath: 'https://example.com/shared-drive/clinical/av-2024-prelim',
     division: 'Clinical Services',
     createdAt: now - 86400000 * 1,
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    size: 45000,
+    filename: 'Preliminary_Trial_Data.xlsx'
   },
   {
     id: 'a3',
@@ -94,6 +100,9 @@ export const MOCK_ATTACHMENTS: Attachment[] = [
     folderPath: 'https://example.com/shared-drive/clinical/av-2024-ethics',
     division: 'Clinical Services',
     createdAt: now - 86400000 * 1,
+    mimeType: 'application/pdf',
+    size: 890000,
+    filename: 'Ethics_Approval.pdf'
   },
 ];
 export const MOCK_AUDIT_LOGS: AuditLog[] = [

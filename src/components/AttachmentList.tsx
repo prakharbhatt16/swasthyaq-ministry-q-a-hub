@@ -1,12 +1,13 @@
 import { useState, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Paperclip, Folder, Trash2, Loader2, Upload, FileIcon, Download, ImageIcon, FileTextIcon } from 'lucide-react';
+import { Paperclip, Folder, Trash2, Loader2, Upload, FileIcon, Download, ImageIcon, FileTextIcon, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { api } from '@/lib/api-client';
 import type { Attachment } from '@shared/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -29,7 +30,6 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
   });
   const handleDownload = async (att: Attachment) => {
     if (!att.downloadUrl) return;
-    // If it's a legacy external link, just open it
     if (att.folderPath) {
       window.open(att.folderPath, '_blank');
       return;
@@ -38,6 +38,7 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
     try {
       const response = await fetch(att.downloadUrl);
       if (!response.ok) throw new Error('Download failed');
+      const isMock = response.headers.get('X-Mock-Download') === 'true';
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -47,8 +48,13 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      if (response.headers.get('X-Mock-Download') === 'true') {
-        toast.info('Downloaded mock file (R2 storage not active)');
+      if (isMock) {
+        toast.success(`Preview generated for "${att.label}"`, {
+          description: "R2 storage is inactive; a realistic mock file was created.",
+          icon: <Info className="h-4 w-4 text-blue-500" />
+        });
+      } else {
+        toast.success(`Downloaded "${att.label}"`);
       }
     } catch (error: any) {
       toast.error(`Download failed: ${error.message}`);
@@ -102,7 +108,7 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
     },
   });
   const formatSize = (bytes?: number) => {
-    if (!bytes) return '0 B';
+    if (bytes === undefined || bytes === null || bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -112,6 +118,7 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
     if (!mimeType) return <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />;
     if (mimeType.startsWith('image/')) return <ImageIcon className="h-4 w-4 text-pink-500 shrink-0" />;
     if (mimeType.includes('pdf')) return <FileTextIcon className="h-4 w-4 text-red-500 shrink-0" />;
+    if (mimeType.includes('spreadsheetml') || mimeType.includes('excel')) return <FileIcon className="h-4 w-4 text-green-600 shrink-0" />;
     return <FileIcon className="h-4 w-4 text-blue-500 shrink-0" />;
   };
   return (
@@ -133,24 +140,33 @@ export function AttachmentList({ questionId, division, onAttachmentAdded }: Atta
             {attachments.map((att) => (
               <motion.li key={att.id} whileHover={{ scale: 1.01 }} className="flex items-center justify-between p-2 rounded-md hover:bg-accent group border border-transparent hover:border-border">
                 <div className="flex items-center gap-3 overflow-hidden">
-                  {att.r2Key ? getFileIcon(att.mimeType) : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  {att.r2Key || att.mimeType ? getFileIcon(att.mimeType) : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
                   <div className="flex flex-col min-w-0">
-                    <button
-                      onClick={() => handleDownload(att)}
-                      className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-1 text-left"
-                      disabled={downloadingId === att.id}
-                    >
-                      {att.label}
-                      {downloadingId === att.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Download className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => handleDownload(att)}
+                            className="text-sm font-medium text-primary hover:underline truncate flex items-center gap-1 text-left"
+                            disabled={downloadingId === att.id}
+                          >
+                            {att.label}
+                            {downloadingId === att.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Download className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            )}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Click to download {att.r2Key ? 'from storage' : 'preview'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                      {att.size && <span>{formatSize(att.size)}</span>}
+                      {att.size ? <span>{formatSize(att.size)}</span> : null}
                       <span>{formatDistanceToNow(new Date(att.createdAt), { addSuffix: true })}</span>
-                      {att.mimeType && <span className="uppercase">{att.mimeType.split('/')[1]}</span>}
+                      {att.mimeType && <span className="uppercase">{att.mimeType.split('/')[1].split('.').pop()}</span>}
                     </div>
                   </div>
                 </div>

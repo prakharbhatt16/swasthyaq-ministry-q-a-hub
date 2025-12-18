@@ -88,9 +88,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (isStr(tag)) items = items.filter(q => q.tags?.includes(tag.toLowerCase()));
     if (isStr(search)) {
       const term = search.toLowerCase();
-      items = items.filter(q => 
-        q.title.toLowerCase().includes(term) || 
-        q.body.toLowerCase().includes(term) || 
+      items = items.filter(q =>
+        q.title.toLowerCase().includes(term) ||
+        q.body.toLowerCase().includes(term) ||
         q.ticketNumber.toLowerCase().includes(term) ||
         q.memberName.toLowerCase().includes(term)
       );
@@ -207,6 +207,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const att = new AttachmentEntity(c.env, c.req.param('id'));
     if (!await att.exists()) return notFound(c);
     const s = await att.getState();
+    // 1. Try R2
     if (s.r2Key && c.env.ATTACHMENTS_BUCKET) {
       const obj = await c.env.ATTACHMENTS_BUCKET.get(s.r2Key);
       if (obj) {
@@ -216,8 +217,35 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
         return new Response(obj.body, { headers });
       }
     }
+    // 2. Try Legacy Folder Path
     if (s.folderPath) return c.redirect(s.folderPath);
-    return new Response("Mock Content", { headers: { 'Content-Type': 'text/plain', 'Content-Disposition': `attachment; filename="${s.label}.txt"`, 'X-Mock-Download': 'true' } });
+    // 3. Realistic Mock Fallback
+    const mime = s.mimeType || 'text/plain';
+    const filename = s.filename || s.label || 'mock-file';
+    let body: Uint8Array | string = '';
+    let contentType = mime;
+    if (mime === 'application/pdf') {
+      body = new TextEncoder().encode(`%PDF-1.4\n1 0 obj\n<< /Title (Mock PDF) /Creator (SwasthyaQ) >>\nendobj\n2 0 obj\n<< /Type /Catalog /Pages 3 0 R >>\nendobj\n3 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 5 0 R >>\nendobj\n5 0 obj\n<< /Length 44 >>\nstream\nBT /F1 24 Tf 100 700 Td (Mock PDF: ${filename}) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f\ntrailer\n<< /Size 6 /Root 2 0 R >>\nstartxref\n310\n%%EOF`);
+    } else if (mime.startsWith('image/')) {
+      // Minimal 1x1 transparent PNG
+      body = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 11, 73, 68, 65, 84, 8, 215, 99, 96, 0, 0, 0, 2, 0, 1, 226, 33, 188, 51, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
+    } else if (mime.includes('spreadsheetml') || mime.includes('excel')) {
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet([{ 'Mock Data': 'This is a generated preview file', 'Filename': filename, 'Division': s.division, 'Timestamp': new Date().toISOString() }]), 'Preview');
+      body = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
+      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    } else {
+      body = `SwasthyaQ Mock File\n-------------------\nFilename: ${filename}\nDivision: ${s.division}\nTimestamp: ${new Date().toISOString()}\n\nThis is a realistic mock file generated because R2 storage is not active in this environment.`;
+      contentType = 'text/plain';
+    }
+    return new Response(body, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'X-Mock-Download': 'true',
+        'Cache-Control': 'no-cache'
+      }
+    });
   });
   app.get('/api/tags', async (c) => {
     const qs = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);

@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Folder, Paperclip, ArrowLeft, Download, FileIcon, ImageIcon, FileTextIcon, Loader2 } from 'lucide-react';
+import { Folder, Paperclip, ArrowLeft, Download, FileIcon, ImageIcon, FileTextIcon, Loader2, Info } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Attachment } from '@shared/types';
 import { DIVISIONS } from '@shared/mock-data';
@@ -37,6 +37,7 @@ export default function AttachmentsPage() {
     try {
       const response = await fetch(att.downloadUrl);
       if (!response.ok) throw new Error('Download failed');
+      const isMock = response.headers.get('X-Mock-Download') === 'true';
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -46,8 +47,13 @@ export default function AttachmentsPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      if (response.headers.get('X-Mock-Download') === 'true') {
-        toast.info('Downloaded mock file (R2 storage not active)');
+      if (isMock) {
+        toast.success(`Preview generated for "${att.label}"`, {
+          description: "R2 storage is inactive; a realistic mock file was created.",
+          icon: <Info className="h-4 w-4 text-blue-500" />
+        });
+      } else {
+        toast.success(`Downloaded "${att.label}"`);
       }
     } catch (error: any) {
       toast.error(`Download failed: ${error.message}`);
@@ -59,6 +65,7 @@ export default function AttachmentsPage() {
     if (!mimeType) return <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />;
     if (mimeType.startsWith('image/')) return <ImageIcon className="h-4 w-4 text-pink-500 shrink-0" />;
     if (mimeType.includes('pdf')) return <FileTextIcon className="h-4 w-4 text-red-500 shrink-0" />;
+    if (mimeType.includes('spreadsheetml') || mimeType.includes('excel')) return <FileIcon className="h-4 w-4 text-green-600 shrink-0" />;
     return <FileIcon className="h-4 w-4 text-blue-500 shrink-0" />;
   };
   const groupedAndFilteredAttachments = useMemo(() => {
@@ -112,12 +119,12 @@ export default function AttachmentsPage() {
                           {atts.map(att => (
                             <Card key={att.id} className="hover:bg-accent transition-colors group">
                               <CardContent className="p-3 flex justify-between items-center">
-                                <button 
+                                <button
                                   onClick={() => handleDownload(att)}
                                   className="flex items-center gap-3 text-sm font-medium text-primary hover:underline text-left"
                                   disabled={downloadingId === att.id}
                                 >
-                                  {att.r2Key ? getFileIcon(att.mimeType) : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
+                                  {att.r2Key || att.mimeType ? getFileIcon(att.mimeType) : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
                                   <span>{att.label}</span>
                                   <span className="text-xs text-muted-foreground">{att.size ? formatSize(att.size) : ''}</span>
                                   {downloadingId === att.id ? (
