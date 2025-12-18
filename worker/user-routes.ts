@@ -8,6 +8,7 @@ import * as xlsx from 'xlsx';
 interface Env extends BaseEnv {
   ATTACHMENTS_BUCKET: R2Bucket;
 }
+const VALID_STATUSES: QuestionStatus[] = ['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'];
 function generateCSV(questions: Question[]): string {
   if (questions.length === 0) return '';
   const headers = ['id', 'ticketNumber', 'memberName', 'house', 'title', 'division', 'status', 'tags', 'createdAt', 'updatedAt', 'body', 'answer'];
@@ -102,13 +103,24 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     return ok(c, generateCSV(questions));
   });
   app.post('/api/questions/export-excel', async (c) => {
-    const questions = await QuestionEntity.list(c.env, null, 10000).then(p => p.items);
-    const attachments = await AttachmentEntity.list(c.env, null, 10000).then(p => p.items);
-    const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(questions), 'Questions');
-    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(attachments), 'Attachments');
-    const buf = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
-    return new Response(buf, { headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="swasthyaq-export.xlsx"` } });
+    try {
+      const questions = await QuestionEntity.list(c.env, null, 10000).then(p => p.items);
+      const attachments = await AttachmentEntity.list(c.env, null, 10000).then(p => p.items);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(questions), 'Questions');
+      xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(attachments), 'Attachments');
+      const buf = xlsx.write(wb, { type: 'array', bookType: 'xlsx' });
+      const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      return new Response(buf, { 
+        headers: { 
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+          'Content-Disposition': `attachment; filename="swasthyaq-export-${timestamp}.xlsx"` 
+        } 
+      });
+    } catch (e) {
+      console.error('[EXCEL EXPORT ERROR]', e);
+      return bad(c, 'Failed to generate Excel export due to memory or processing constraints.');
+    }
   });
   app.get('/api/questions/:id', async (c) => {
     const q = new QuestionEntity(c.env, c.req.param('id'));
@@ -118,6 +130,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.post('/api/questions', async (c) => {
     const body = await c.req.json<Partial<Question>>();
     if (!isStr(body.title) || !isStr(body.division)) return bad(c, 'Missing required fields');
+    if (body.status && !VALID_STATUSES.includes(body.status)) {
+      return bad(c, `Invalid status: ${body.status}`);
+    }
     const id = crypto.randomUUID();
     const now = Date.now();
     const question: Question = {
@@ -135,6 +150,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.patch('/api/questions/:id', async (c) => {
     const id = c.req.param('id');
     const patch = await c.req.json<Partial<Question>>();
+    if (patch.status && !VALID_STATUSES.includes(patch.status)) {
+      return bad(c, `Invalid status: ${patch.status}`);
+    }
     const q = new QuestionEntity(c.env, id);
     if (!await q.exists()) return notFound(c);
     const sanitized = { ...patch };
@@ -145,6 +163,9 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   app.post('/api/questions/bulk-status', async (c) => {
     const { ids, status } = await c.req.json<{ ids: string[], status: QuestionStatus }>();
     if (!Array.isArray(ids) || !status) return bad(c, 'Invalid payload');
+    if (!VALID_STATUSES.includes(status)) {
+      return bad(c, `Invalid status: ${status}`);
+    }
     const now = Date.now();
     await Promise.all(ids.map(async id => {
       const q = new QuestionEntity(c.env, id);
@@ -207,7 +228,6 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const att = new AttachmentEntity(c.env, c.req.param('id'));
     if (!await att.exists()) return notFound(c);
     const s = await att.getState();
-    // 1. Try R2
     if (s.r2Key && c.env.ATTACHMENTS_BUCKET) {
       const obj = await c.env.ATTACHMENTS_BUCKET.get(s.r2Key);
       if (obj) {
@@ -217,9 +237,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
         return new Response(obj.body, { headers });
       }
     }
-    // 2. Try Legacy Folder Path
     if (s.folderPath) return c.redirect(s.folderPath);
-    // 3. Realistic Mock Fallback
     const mime = s.mimeType || 'text/plain';
     const filename = s.filename || s.label || 'mock-file';
     let body: Uint8Array | string = '';
@@ -227,7 +245,6 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (mime === 'application/pdf') {
       body = new TextEncoder().encode(`%PDF-1.4\n1 0 obj\n<< /Title (Mock PDF) /Creator (SwasthyaQ) >>\nendobj\n2 0 obj\n<< /Type /Catalog /Pages 3 0 R >>\nendobj\n3 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n4 0 obj\n<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 5 0 R >>\nendobj\n5 0 obj\n<< /Length 44 >>\nstream\nBT /F1 24 Tf 100 700 Td (Mock PDF: ${filename}) Tj ET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f\ntrailer\n<< /Size 6 /Root 2 0 R >>\nstartxref\n310\n%%EOF`);
     } else if (mime.startsWith('image/')) {
-      // Minimal 1x1 transparent PNG
       body = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 11, 73, 68, 65, 84, 8, 215, 99, 96, 0, 0, 0, 2, 0, 1, 226, 33, 188, 51, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
     } else if (mime.includes('spreadsheetml') || mime.includes('excel')) {
       const wb = xlsx.utils.book_new();

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,7 +33,7 @@ export default function QuestionsPage() {
   const [cursors, setCursors] = useState<Array<string | null>>([null]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   useDebounce(() => setDebouncedSearchTerm(searchTerm), 400, [searchTerm]);
-  const { data, isLoading, error } = useQuestionsQuery({
+  const { data, isLoading, error, isFetching } = useQuestionsQuery({
     statusFilter, divisionFilter, houseFilter, tagFilter,
     searchTerm: debouncedSearchTerm,
     cursor: cursors[currentPage],
@@ -53,6 +53,7 @@ export default function QuestionsPage() {
     setSearchParams(params);
     setCurrentPage(0);
     setCursors([null]);
+    setSelectedIds(new Set());
   }, [statusFilter, divisionFilter, houseFilter, tagFilter, debouncedSearchTerm, setSearchParams]);
   useEffect(() => {
     if (data?.next && cursors.length === currentPage + 1) {
@@ -64,6 +65,14 @@ export default function QuestionsPage() {
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+  const toggleSelectAll = () => {
+    if (!data?.items) return;
+    if (selectedIds.size === data.items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(data.items.map(q => q.id)));
+    }
+  };
   const bulkUpdateMutation = useMutation({
     mutationFn: ({ ids, status }: { ids: string[], status: QuestionStatus }) =>
       api('/api/questions/bulk-status', { method: 'POST', body: JSON.stringify({ ids, status }) }),
@@ -97,6 +106,7 @@ export default function QuestionsPage() {
     onSuccess: () => toast.success('Export completed'),
     onError: (err) => toast.error(`Export failed: ${err.message}`)
   });
+  const isAllSelected = data?.items && data.items.length > 0 && selectedIds.size === data.items.length;
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div className="py-8 md:py-10 lg:py-12">
@@ -122,6 +132,10 @@ export default function QuestionsPage() {
               </SelectContent>
             </Select>
             <div className="flex items-center gap-2 justify-end">
+              <div className="flex items-center gap-2 mr-4">
+                <Checkbox id="select-all" checked={isAllSelected} onCheckedChange={toggleSelectAll} />
+                <label htmlFor="select-all" className="text-xs font-medium cursor-pointer select-none">Select All</label>
+              </div>
               <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}><LayoutGrid className="h-4 w-4" /></Button>
               <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" onClick={() => setViewMode('list')}><List className="h-4 w-4" /></Button>
             </div>
@@ -146,20 +160,33 @@ export default function QuestionsPage() {
                 <span className="text-sm font-medium">{selectedIds.size} selected</span>
                 <div className="flex gap-2">
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Status <ChevronDown className="ml-2 h-4 w-4" /></Button></DropdownMenuTrigger>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={bulkUpdateMutation.isPending}>
+                        {bulkUpdateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Status <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
                     <DropdownMenuContent>
                       {['Draft', 'Submitted', 'Admitted', 'Non-Admitted', 'Answered', 'Closed'].map(s => (
                         <DropdownMenuItem key={s} onSelect={() => bulkUpdateMutation.mutate({ ids: Array.from(selectedIds), status: s as any })}>{s}</DropdownMenuItem>
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button variant="outline" size="sm" onClick={() => exportMutation.mutate('csv')}><Download className="h-4 w-4 mr-2" /> Export</Button>
+                  <Button variant="outline" size="sm" onClick={() => exportMutation.mutate('csv')} disabled={exportMutation.isPending}>
+                    {exportMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                    Export
+                  </Button>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-        <main>
+        <main className="relative">
+          {isFetching && !isLoading && (
+            <div className="absolute inset-0 bg-background/20 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-xl">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          )}
           {isLoading ? (
             <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-3 gap-6" : "space-y-4"}>
               {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-64 rounded-xl" />)}
@@ -179,9 +206,9 @@ export default function QuestionsPage() {
           )}
         </main>
         <footer className="mt-12 flex justify-center items-center gap-4">
-          <Button variant="outline" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}>Prev</Button>
+          <Button variant="outline" onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0 || isFetching}>Prev</Button>
           <span className="text-sm font-medium">Page {currentPage + 1}</span>
-          <Button variant="outline" onClick={() => setCurrentPage(p => p + 1)} disabled={!data?.next}>Next</Button>
+          <Button variant="outline" onClick={() => setCurrentPage(p => p + 1)} disabled={!data?.next || isFetching}>Next</Button>
         </footer>
       </div>
     </div>
