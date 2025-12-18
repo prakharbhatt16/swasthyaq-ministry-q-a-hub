@@ -50,9 +50,15 @@ export interface Attachment {
   id: string;
   questionId: string;
   label: string;
-  folderPath: string; // URL/Path to the folder
+  folderPath?: string; // Legacy URL/Path to the folder
   division: string;
   createdAt: number;
+  // R2 Metadata
+  filename?: string;
+  size?: number;
+  mimeType?: string;
+  r2Key?: string;
+  downloadUrl?: string;
 }
 export interface Metrics {
   byStatus: { status: QuestionStatus; count: number }[];

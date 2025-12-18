@@ -66,6 +66,11 @@ export class AttachmentEntity extends IndexedEntity<Attachment> {
     folderPath: "",
     division: "",
     createdAt: 0,
+    filename: "",
+    size: 0,
+    mimeType: "",
+    r2Key: "",
+    downloadUrl: "",
   };
   static seedData = MOCK_ATTACHMENTS;
 }

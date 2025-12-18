@@ -18,7 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Paperclip, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Edit, MessageSquare, Send, X, Paperclip, Trash2, FileText } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Question, QuestionStatus, Comment, House } from '@shared/types';
 import { AttachmentList } from '@/components/AttachmentList';
@@ -71,13 +71,22 @@ export default function QuestionEditor() {
   const isViewMode = id && !location.pathname.endsWith('/edit');
   const [tagInput, setTagInput] = useState('');
   const [insertTarget, setInsertTarget] = useState<'body' | 'answer'>('body');
-  const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({ queryKey: ['questions', id], queryFn: () => api(`/api/questions/${id}`), enabled: !!id });
-  const { data: divisions, isLoading: isLoadingDivisions } = useQuery<string[]>({ queryKey: ['divisions'], queryFn: () => api('/api/divisions') });
-  const form = useForm<QuestionFormData>({ 
-    resolver: zodResolver(questionSchema), 
-    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha', tags: [] } 
+  const { data: question, isLoading: isLoadingQuestion } = useQuery<Question>({ 
+    queryKey: ['questions', id], 
+    queryFn: () => api(`/api/questions/${id}`), 
+    enabled: !!id 
   });
-  useEffect(() => { if (question) form.reset({ ...question, answer: question.answer || '', tags: question.tags || [] }); }, [question, form]);
+  const { data: divisions, isLoading: isLoadingDivisions } = useQuery<string[]>({ 
+    queryKey: ['divisions'], 
+    queryFn: () => api('/api/divisions') 
+  });
+  const form = useForm<QuestionFormData>({
+    resolver: zodResolver(questionSchema),
+    defaultValues: { title: '', body: '', division: '', status: 'Draft', answer: '', memberName: '', ticketNumber: '', house: 'Lok Sabha', tags: [] }
+  });
+  useEffect(() => { 
+    if (question) form.reset({ ...question, answer: question.answer || '', tags: question.tags || [] }); 
+  }, [question, form]);
   const mutation = useMutation({
     mutationFn: (data: Partial<Question>) => api<Question>(isNew ? '/api/questions' : `/api/questions/${id}`, { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(data) }),
     onSuccess: (data) => {
@@ -115,11 +124,11 @@ export default function QuestionEditor() {
     const currentTags = form.getValues('tags') || [];
     form.setValue('tags', currentTags.filter(t => t !== tagToRemove));
   };
-  const handleInsertAttachment = (label: string, path: string) => {
-    const markdownLink = `\n[${label}](${path})`;
+  const handleInsertAttachment = (label: string, downloadUrl: string) => {
+    const markdownLink = `\n[Download ${label}](${downloadUrl})`;
     const currentVal = form.getValues(insertTarget) || '';
     form.setValue(insertTarget, currentVal + markdownLink);
-    toast.info(`Attachment link inserted into ${insertTarget === 'body' ? 'Question Body' : 'Answer'}.`);
+    toast.info(`File link inserted into ${insertTarget === 'body' ? 'Question Body' : 'Answer'}.`);
   };
   const isLoading = isLoadingQuestion || isLoadingDivisions;
   if (isViewMode) {
@@ -139,7 +148,7 @@ export default function QuestionEditor() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the question and all its associated attachments.
+                        This action cannot be undone. This will permanently delete the question and all its associated files from storage.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -186,7 +195,28 @@ export default function QuestionEditor() {
                           <FormField control={form.control} name="answer" render={({ field }) => (<FormItem><FormLabel>Answer</FormLabel><FormControl><Textarea placeholder="Provide the official answer here..." rows={5} {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </>)}
                     </CardContent></Card>
-                {!isNew && id && (<div className="space-y-4"><div className="flex items-center gap-2 p-2 bg-muted rounded-md"><p className="text-sm font-medium">Insert Attachment Link into:</p><Select value={insertTarget} onValueChange={(v) => setInsertTarget(v as 'body' | 'answer')}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="body">Question Body</SelectItem><SelectItem value="answer">Answer</SelectItem></SelectContent></Select><Paperclip className="h-4 w-4 text-muted-foreground" /></div><AttachmentList questionId={id} division={form.watch('division') || question?.division || ''} onAttachmentAdded={handleInsertAttachment} /></div>)}
+                {!isNew && id && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 p-3 bg-muted rounded-md border">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-medium">Insert File Link into:</p>
+                      <Select value={insertTarget} onValueChange={(v) => setInsertTarget(v as 'body' | 'answer')}>
+                        <SelectTrigger className="w-[180px] h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="body">Question Body</SelectItem>
+                          <SelectItem value="answer">Answer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <AttachmentList 
+                      questionId={id} 
+                      division={form.watch('division') || question?.division || ''} 
+                      onAttachmentAdded={handleInsertAttachment} 
+                    />
+                  </div>
+                )}
                 <div className="flex justify-end"><Button type="submit" disabled={mutation.isPending} className="bg-[#F38020] hover:bg-[#d86d11] text-white">{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} {isNew ? 'Create Question' : 'Save Changes'}</Button></div>
               </form></Form>
           </motion.div>
