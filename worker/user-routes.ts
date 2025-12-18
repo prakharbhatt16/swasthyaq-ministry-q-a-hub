@@ -200,7 +200,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const allAttachments = await AttachmentEntity.list(c.env, null, 1000).then(p => p.items);
     const mapped = allAttachments.map(a => ({
       ...a,
-      downloadUrl: a.r2Key ? `/api/attachments/${a.id}/download` : a.folderPath
+      downloadUrl: a.folderPath || (a.r2Key ? `/api/attachments/${a.id}/download` : undefined)
     }));
     if (isStr(questionId)) {
       return ok(c, mapped.filter(a => a.questionId === questionId));
@@ -209,40 +209,46 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
   });
   app.post('/api/attachments', async (c) => {
     const formData = await c.req.formData();
+    console.log('POST /api/attachments entries:', Array.from(formData.entries()).map(([k,v])=>[k, v instanceof File ? `${v.name} (${v.size}B)` : String(v)]));
     const file = formData.get('file') as File | null;
     const questionId = formData.get('questionId') as string;
     const division = formData.get('division') as string;
     const label = formData.get('label') as string;
     const folderPath = formData.get('folderPath') as string;
+    console.log('Parsed file:', !!file, file?.name, file?.size, 'Bucket:', !!c.env.ATTACHMENTS_BUCKET);
+    
     if (!isStr(questionId) || !isStr(division)) return bad(c, 'questionId and division are required');
+    
     const id = crypto.randomUUID();
     let attachmentData: Attachment = {
       id,
       questionId,
-      label: label || (file ? file.name : 'Untitled'),
+      label: label || (file?.name || 'Untitled'),
       division,
       createdAt: Date.now(),
     };
-    if (file && c.env.ATTACHMENTS_BUCKET) {
+
+    // Always extract file metadata first
+    if (file) {
       if (file.size > 10 * 1024 * 1024) return bad(c, 'File too large (max 10MB)');
-      const r2Key = `attachments/${questionId}/${id}-${file.name}`;
-      await c.env.ATTACHMENTS_BUCKET.put(r2Key, file.stream(), {
-        httpMetadata: { contentType: file.type }
-      });
-      attachmentData = {
-        ...attachmentData,
-        filename: file.name,
-        size: file.size,
-        mimeType: file.type,
-        r2Key,
-        downloadUrl: `/api/attachments/${id}/download`
-      };
+      attachmentData.filename = file.name;
+      attachmentData.size = Number(file.size);
+      attachmentData.mimeType = file.type;
+      attachmentData.downloadUrl = `/api/attachments/${id}/download`;
+      
+      // Only upload if bucket exists
+      if (c.env.ATTACHMENTS_BUCKET) {
+        const r2Key = `attachments/${questionId}/${id}-${file.name}`;
+        await c.env.ATTACHMENTS_BUCKET.put(r2Key, file.stream(), {
+          httpMetadata: { contentType: file.type }
+        });
+        attachmentData.r2Key = r2Key;
+      }
     } else if (isStr(folderPath)) {
       attachmentData.folderPath = folderPath;
       attachmentData.downloadUrl = folderPath;
-    } else {
-      return bad(c, 'Either file or folderPath is required');
     }
+    
     await AttachmentEntity.create(c.env, attachmentData);
     const question = new QuestionEntity(c.env, questionId);
     if (await question.exists()) {

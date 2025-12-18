@@ -6,12 +6,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Folder, Link as LinkIcon, Paperclip, ArrowLeft } from 'lucide-react';
+import { Folder, Link as LinkIcon, Paperclip, ArrowLeft, Download, FileIcon } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Attachment } from '@shared/types';
 import { DIVISIONS } from '@shared/mock-data';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
+const formatSize = (bytes: number) => {
+  if (!bytes) return '';
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / 1024 ** i).toFixed(1)} ${sizes[i]}`;
+};
+
 export default function AttachmentsPage() {
   const navigate = useNavigate();
   const [divisionFilter, setDivisionFilter] = useState('All');
@@ -70,10 +77,11 @@ export default function AttachmentsPage() {
                           {atts.map(att => (
                             <Card key={att.id} className="hover:bg-accent transition-colors">
                               <CardContent className="p-3 flex justify-between items-center">
-                                <a href={att.folderPath} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm font-medium text-primary hover:underline">
-                                  <Folder className="h-4 w-4 text-muted-foreground" />
+                                <a href={att.downloadUrl || att.folderPath || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-sm font-medium text-primary hover:underline">
+                                  {att.r2Key ? <FileIcon className="h-4 w-4 text-blue-500 shrink-0" /> : <Folder className="h-4 w-4 text-muted-foreground shrink-0" />}
                                   <span>{att.label}</span>
-                                  <LinkIcon className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-xs text-muted-foreground">{att.size ? formatSize(att.size) : ''}</span>
+                                  <Download className="h-3 w-3 text-muted-foreground" />
                                 </a>
                                 <Link to={`/questions/${att.questionId}`} className="text-xs text-muted-foreground hover:underline">
                                   View Question
