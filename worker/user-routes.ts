@@ -107,7 +107,8 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     await QuestionEntity.ensureSeed(c.env);
     const questions = await QuestionEntity.list(c.env, null, 1000).then(p => p.items);
     const csv = generateCSV(questions);
-    return c.text(csv, 200, { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="questions-${Date.now()}.csv"` });
+    // Return as JSON to be compatible with frontend api() helper
+    return ok(c, csv);
   });
   app.post('/api/questions/export-excel', async (c) => {
     await QuestionEntity.ensureSeed(c.env);
@@ -142,6 +143,20 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     };
     await QuestionEntity.create(c.env, newQuestion);
     return ok(c, newQuestion);
+  });
+  app.post('/api/questions/bulk-status', async (c) => {
+    const { ids, status } = await c.req.json<{ ids: string[], status: QuestionStatus }>();
+    if (!Array.isArray(ids) || !status) return bad(c, 'ids (array) and status are required');
+    const now = Date.now();
+    const results = await Promise.all(ids.map(async (id) => {
+      const q = new QuestionEntity(c.env, id);
+      if (await q.exists()) {
+        await q.mutate(state => ({ ...state, status, updatedAt: now }));
+        return true;
+      }
+      return false;
+    }));
+    return ok(c, { updated: results.filter(Boolean).length });
   });
   app.patch('/api/questions/:id', async (c) => {
     const { id } = c.req.param();
